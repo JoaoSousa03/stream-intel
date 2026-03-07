@@ -559,9 +559,22 @@ def _apply_migrations(conn: sqlite3.Connection):
     conn.commit()
 
 
+def _nuke_stale_wal():
+    """Delete WAL/SHM sidecar files that belong to a now-gone or replaced DB."""
+    for suffix in ("-wal", "-shm"):
+        sidecar = settings.DB_PATH.parent / (settings.DB_PATH.name + suffix)
+        if sidecar.exists():
+            try:
+                sidecar.unlink()
+                print(f"[DB] Removed stale sidecar: {sidecar.name}", flush=True)
+            except Exception as exc:
+                print(f"[DB] Could not remove {sidecar.name}: {exc}", flush=True)
+
+
 def init_db():
     # create new database or migrate existing one
     if not settings.DB_PATH.exists():
+        _nuke_stale_wal()
         with sqlite3.connect(str(settings.DB_PATH)) as conn:
             conn.executescript(SCHEMA)
         print(f"[DB] Initialised at {settings.DB_PATH}")
@@ -570,6 +583,28 @@ def init_db():
             _apply_migrations(conn)
     else:
         # open connection and apply any migrations
-        with sqlite3.connect(str(settings.DB_PATH)) as conn:
-            _apply_migrations(conn)
-        print(f"[DB] Migration check complete for {settings.DB_PATH}")
+        try:
+            with sqlite3.connect(str(settings.DB_PATH)) as conn:
+                _apply_migrations(conn)
+            print(f"[DB] Migration check complete for {settings.DB_PATH}")
+        except sqlite3.DatabaseError as exc:
+            # The DB file is corrupted (e.g. stale WAL from a different DB was
+            # applied on volume).  Rename it for forensics, nuke the sidecars,
+            # and start fresh so the app can at least boot.  The clean DB can
+            # then be re-uploaded via /api/upload-db.
+            from datetime import datetime as _dt
+            ts = _dt.now().strftime("%Y%m%d_%H%M%S")
+            bak = settings.DB_PATH.with_name(f"{settings.DB_PATH.stem}_corrupt_{ts}.db")
+            try:
+                settings.DB_PATH.rename(bak)
+                print(f"[DB] Malformed DB renamed to {bak.name} — original error: {exc}", flush=True)
+            except Exception as rename_exc:
+                print(f"[DB] Could not rename malformed DB: {rename_exc}", flush=True)
+                settings.DB_PATH.unlink(missing_ok=True)
+            _nuke_stale_wal()
+            # Recreate a fresh empty DB so the app can start
+            with sqlite3.connect(str(settings.DB_PATH)) as conn:
+                conn.executescript(SCHEMA)
+            with sqlite3.connect(str(settings.DB_PATH)) as conn:
+                _apply_migrations(conn)
+            print("[DB] Fresh DB created after corruption recovery. Re-upload your data via /api/upload-db.", flush=True)
