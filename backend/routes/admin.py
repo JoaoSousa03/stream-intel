@@ -431,6 +431,93 @@ def download_db():
     )
 
 
+@bp.route("/push-titles", methods=["POST"])
+def push_titles():
+    """
+    Accept a SQLite DB file from a local scrape and merge its `titles` and
+    `scrape_runs` rows into the production DB, leaving all user data untouched.
+
+    Auth: same as /upload-db — migration secret header or logged-in admin.
+    """
+    migration_secret = os.environ.get("MIGRATION_SECRET", "")
+    provided_secret = request.headers.get("X-Migration-Secret", "")
+    if not (migration_secret and provided_secret and migration_secret == provided_secret):
+        if not g.get("current_user"):
+            from backend.auth import verify_token, _extract_token
+            user = verify_token(_extract_token())
+            if not user:
+                return jsonify({"error": "Authentication required"}), 401
+            g.current_user = user
+        db_conn = get_db()
+        uid = g.current_user["user_id"]
+        row = db_conn.execute("SELECT is_admin FROM users WHERE id=?", (uid,)).fetchone()
+        if not row or not row["is_admin"]:
+            return jsonify({"error": "Admin access required"}), 403
+
+    f = request.files.get("db")
+    if not f:
+        return jsonify({"error": "No file provided"}), 400
+
+    tmp_path = settings.DB_PATH.with_suffix(".db.push_tmp")
+    try:
+        f.save(str(tmp_path))
+    except Exception as exc:
+        return jsonify({"error": f"Failed to save upload: {exc}"}), 500
+
+    try:
+        with sqlite3.connect(str(tmp_path)) as src:
+            src.row_factory = sqlite3.Row
+            # Validate it's a real SQLite DB with a titles table
+            src.execute("PRAGMA integrity_check").fetchone()
+            title_count = src.execute("SELECT COUNT(*) FROM titles").fetchone()[0]
+
+            runs = src.execute(
+                "SELECT started_at, finished_at, mode, regions, title_count, status FROM scrape_runs"
+            ).fetchall()
+            titles = src.execute(
+                """SELECT scraped_at, platform, region, title, content_type, genre,
+                          release_year, ranking_position, synopsis, maturity_rating,
+                          is_trending, source_url, imdb_score, imdb_votes, tomatometer,
+                          tmdb_score, runtime_mins
+                   FROM titles"""
+            ).fetchall()
+    except Exception as exc:
+        tmp_path.unlink(missing_ok=True)
+        return jsonify({"error": f"Invalid source database: {exc}"}), 400
+    finally:
+        tmp_path.unlink(missing_ok=True)
+
+    prod = settings.DB_PATH
+    with sqlite3.connect(str(prod)) as conn:
+        conn.execute("PRAGMA journal_mode=WAL")
+        # Insert a single combined scrape_run record for this push
+        cur = conn.execute(
+            "INSERT INTO scrape_runs (mode, regions, title_count, status, finished_at) VALUES (?,?,?,?,datetime('now'))",
+            ("push", "local", title_count, "done"),
+        )
+        push_run_id = cur.lastrowid
+
+        conn.executemany(
+            """INSERT OR REPLACE INTO titles
+               (run_id, scraped_at, platform, region, title, content_type, genre,
+                release_year, ranking_position, synopsis, maturity_rating, is_trending,
+                source_url, imdb_score, imdb_votes, tomatometer, tmdb_score, runtime_mins)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            [
+                (push_run_id, t["scraped_at"], t["platform"], t["region"], t["title"],
+                 t["content_type"], t["genre"], t["release_year"], t["ranking_position"],
+                 t["synopsis"], t["maturity_rating"], t["is_trending"], t["source_url"],
+                 t["imdb_score"], t["imdb_votes"], t["tomatometer"], t["tmdb_score"],
+                 t["runtime_mins"])
+                for t in titles
+            ],
+        )
+        conn.commit()
+
+    print(f"[push-titles] merged {title_count} titles from local scrape", flush=True)
+    return jsonify({"ok": True, "titles_merged": title_count})
+
+
 @bp.route("/upload-db", methods=["POST"])
 def upload_db():
     # Allow either an authenticated admin OR a one-time migration secret
