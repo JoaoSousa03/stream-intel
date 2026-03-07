@@ -9,12 +9,13 @@ import threading
 import time
 from datetime import datetime
 from pathlib import Path
-from flask import Flask, send_from_directory, jsonify
+from flask import Flask, app, send_from_directory, jsonify
 from flask_compress import Compress
 from werkzeug.middleware.proxy_fix import ProxyFix
 from backend.config import settings
 from backend.database import init_db, close_db
 from backend.routes import all_blueprints
+from backend.routes.well_known import well_known_bp
 
 
 def _suppress_root_post_logs() -> None:
@@ -221,8 +222,8 @@ def create_app() -> Flask:
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
     # Gzip/Brotli compress all JSON + text responses ≥ 1 KB
-    app.config['COMPRESS_ALGORITHM'] = ['br', 'gzip']
-    app.config['COMPRESS_MIN_SIZE'] = 1000
+    app.config["COMPRESS_ALGORITHM"] = ["br", "gzip"]
+    app.config["COMPRESS_MIN_SIZE"] = 1000
     Compress(app)
 
     # Register teardown
@@ -355,3 +356,6 @@ def create_app() -> Flask:
         return jsonify({"error": "Method not allowed"}), 405
 
     return app
+
+
+app.register_blueprint(well_known_bp)
