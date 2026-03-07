@@ -253,6 +253,101 @@ def set_watched():
     return jsonify({"ok": True})
 
 
+@bp.route("/watched/batch", methods=["POST"])
+@require_auth
+def set_watched_batch():
+    """Batch-update watched state for multiple seasons in one round-trip.
+
+    Body::
+      {
+        "platform": str,
+        "title":    str,
+        "watched":  bool,
+        "seasons": [
+          {"season_num": int, "episodes": [int, ...], "runtime_mins": int},
+          ...
+        ]
+      }
+
+    When ``watched=true``:  each season's episode bits are OR-ed in and
+    ``runtime_mins`` is SET to the supplied total (complete season cost).
+
+    When ``watched=false`` and ``seasons`` is non-empty: each listed season
+    has the specified episode bits cleared (``episodes: []`` clears the whole
+    season row).
+
+    When ``watched=false`` and ``seasons`` is empty: all watched records for
+    this title are deleted in a single statement.
+    """
+    data = request.get_json(silent=True) or {}
+    platform = (data.get("platform") or "").strip()
+    title = (data.get("title") or "").strip()
+    if not platform or not title:
+        return jsonify({"error": "platform and title required"}), 400
+
+    watched = bool(data.get("watched", True))
+    seasons = data.get("seasons") or []
+    uid = g.current_user["user_id"]
+    db = get_db()
+
+    if not watched and not seasons:
+        # Fastest path: unwatch everything for this title in one DELETE.
+        db.execute(
+            "DELETE FROM watched_seasons WHERE user_id=? AND platform=? AND title=?",
+            (uid, platform, title),
+        )
+    else:
+        for s in seasons[:500]:  # hard cap to prevent abuse
+            season_num = int(s.get("season_num", 0))
+            episodes = [int(e) for e in (s.get("episodes") or []) if 1 <= int(e) <= 62]
+            runtime_mins = max(0, int(s.get("runtime_mins") or 0))
+
+            # Build bitmask from episode numbers (Python handles big ints natively)
+            ep_mask = 0
+            for e in episodes:
+                ep_mask |= 1 << (e - 1)
+
+            if watched:
+                if ep_mask == 0:
+                    continue
+                db.execute(
+                    """INSERT INTO watched_seasons
+                           (user_id, platform, title, season_num, ep_mask, runtime_mins, updated_at)
+                       VALUES (?,?,?,?,?,?,datetime('now'))
+                       ON CONFLICT(user_id, platform, title, season_num)
+                       DO UPDATE SET ep_mask      = ep_mask | excluded.ep_mask,
+                                     runtime_mins = excluded.runtime_mins,
+                                     updated_at   = datetime('now')""",
+                    (uid, platform, title, season_num, ep_mask, runtime_mins),
+                )
+            else:
+                if ep_mask == 0:
+                    # No specific episodes supplied → clear the whole season row
+                    db.execute(
+                        "DELETE FROM watched_seasons "
+                        "WHERE user_id=? AND platform=? AND title=? AND season_num=?",
+                        (uid, platform, title, season_num),
+                    )
+                else:
+                    db.execute(
+                        """UPDATE watched_seasons
+                           SET ep_mask      = ep_mask & ?,
+                               runtime_mins = MAX(0, runtime_mins - ?),
+                               updated_at   = datetime('now')
+                           WHERE user_id=? AND platform=? AND title=? AND season_num=?""",
+                        (~ep_mask, runtime_mins, uid, platform, title, season_num),
+                    )
+                    db.execute(
+                        """DELETE FROM watched_seasons
+                           WHERE user_id=? AND platform=? AND title=? AND season_num=? AND ep_mask=0""",
+                        (uid, platform, title, season_num),
+                    )
+
+    db.commit()
+    cache_stats(db, uid)
+    return jsonify({"ok": True})
+
+
 @bp.route("/watched/backfill", methods=["PATCH"])
 @require_auth
 def backfill_episode_runtimes():

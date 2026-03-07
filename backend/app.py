@@ -81,6 +81,19 @@ def _auto_scrape_loop(interval_days: int) -> None:
             f"[AUTO-SCRAPE] starting scrape mode={mode} regions={regions_list}",
             flush=True,
         )
+        # Record the run in scrape_runs so _last_run_info() can track completion.
+        run_id = None
+        final_status = "error"
+        try:
+            with sqlite3.connect(str(settings.DB_PATH)) as _con:
+                cur = _con.execute(
+                    "INSERT INTO scrape_runs (mode, regions, status) VALUES (?,?,?)",
+                    (mode, json.dumps(regions_list), "running"),
+                )
+                run_id = cur.lastrowid
+                _con.commit()
+        except Exception as exc:
+            print(f"[AUTO-SCRAPE] failed to create run record: {exc}", flush=True)
         cmd = [
             sys.executable,
             runner_path,
@@ -98,6 +111,8 @@ def _auto_scrape_loop(interval_days: int) -> None:
         env["PYTHONPATH"] = (
             f"{base_str}{os.pathsep}{existing_pp}" if existing_pp else base_str
         )
+        if run_id is not None:
+            env["SI_RUN_ID"] = str(run_id)
         try:
             result = subprocess.run(
                 cmd,
@@ -110,6 +125,7 @@ def _auto_scrape_loop(interval_days: int) -> None:
             )
             if result.returncode == 0:
                 print("[AUTO-SCRAPE] scrape finished successfully", flush=True)
+                final_status = "done"
             else:
                 print(
                     f"[AUTO-SCRAPE] scrape exited with code {result.returncode}",
@@ -119,20 +135,51 @@ def _auto_scrape_loop(interval_days: int) -> None:
                     print(f"[AUTO-SCRAPE] stderr: {result.stderr[-2000:]}", flush=True)
         except Exception as exc:
             print(f"[AUTO-SCRAPE] error running scraper: {exc}", flush=True)
+        # Update the run record with final status and title count.
+        if run_id is not None:
+            try:
+                with sqlite3.connect(str(settings.DB_PATH)) as _con:
+                    _con.row_factory = sqlite3.Row
+                    n = _con.execute(
+                        "SELECT COUNT(*) AS n FROM titles WHERE run_id=?", (run_id,)
+                    ).fetchone()["n"]
+                    _con.execute(
+                        "UPDATE scrape_runs SET finished_at=datetime('now'), "
+                        "title_count=?, status=? WHERE id=?",
+                        (n, final_status, run_id),
+                    )
+                    _con.commit()
+                print(
+                    f"[AUTO-SCRAPE] run record updated: status={final_status}, titles={n}",
+                    flush=True,
+                )
+            except Exception as exc:
+                print(f"[AUTO-SCRAPE] failed to update run record: {exc}", flush=True)
 
-    # Give the web server a moment to fully start up before the first check.
-    time.sleep(90)
+    # Use a shorter startup delay when the DB has no titles yet (fresh volume).
+    try:
+        with sqlite3.connect(str(settings.DB_PATH)) as _chk:
+            _has_titles = _chk.execute("SELECT COUNT(*) FROM titles").fetchone()[0] > 0
+    except Exception:
+        _has_titles = False
+    startup_wait = 90 if _has_titles else 10
+    print(
+        f"[AUTO-SCRAPE] startup wait: {startup_wait}s (titles present: {_has_titles})",
+        flush=True,
+    )
+    time.sleep(startup_wait)
 
     while True:
         try:
             info = _last_run_info()
             if info is None:
-                # No successful scrape yet — run one now with sensible defaults
+                # No successful scrape yet — use trending for a fast initial fill.
+                # A full catalog scrape (all/ALL) takes hours; trending takes minutes.
                 print(
-                    "[AUTO-SCRAPE] no previous run found, running initial scrape",
+                    "[AUTO-SCRAPE] no previous run found, running initial trending scrape",
                     flush=True,
                 )
-                _run_scrape("all", ["ALL"])
+                _run_scrape("trending", ["ALL"])
             else:
                 last_dt_str, mode, regions_list = info
                 try:
@@ -222,6 +269,48 @@ def create_app() -> Flask:
             f"[AUTO-SCRAPE] background thread started (interval={interval_days}d)",
             flush=True,
         )
+
+    @app.route("/api/debug")
+    def debug_status():
+        """Unauthenticated status endpoint — useful for verifying DB and scrape state."""
+        db_path = str(settings.DB_PATH)
+        info: dict = {
+            "db_path": db_path,
+            "db_exists": os.path.exists(db_path),
+            "db_writable": False,
+            "titles": 0,
+            "users": 0,
+            "last_scrape": None,
+        }
+        try:
+            parent = str(Path(db_path).parent)
+            info["db_writable"] = bool(
+                os.access(db_path, os.W_OK)
+                if os.path.exists(db_path)
+                else os.access(parent, os.W_OK)
+            )
+            with sqlite3.connect(db_path) as _con:
+                _con.row_factory = sqlite3.Row
+                info["titles"] = _con.execute("SELECT COUNT(*) FROM titles").fetchone()[
+                    0
+                ]
+                info["users"] = _con.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+                row = _con.execute(
+                    "SELECT id, started_at, finished_at, mode, status, title_count "
+                    "FROM scrape_runs ORDER BY id DESC LIMIT 1"
+                ).fetchone()
+                if row:
+                    info["last_scrape"] = dict(row)
+        except Exception as exc:
+            info["error"] = str(exc)
+        return jsonify(info)
+
+    @app.errorhandler(500)
+    def internal_error(e):
+        import traceback
+        tb = traceback.format_exc()
+        print(f"[500] Unhandled exception:\n{tb}", flush=True)
+        return jsonify({"error": "Internal server error", "detail": str(e)}), 500
 
     # global handler for 405 so we can log the offending requests
     @app.errorhandler(405)

@@ -416,4 +416,15 @@ def upload_db():
     if not f:
         return jsonify({"error": "No file provided"}), 400
     f.save(str(settings.DB_PATH))
+    # Remove any stale WAL/SHM files left over from the previous database.
+    # If they're not deleted, SQLite detects a checksum mismatch with the
+    # new file and may refuse to open it or silently corrupt data.
+    for suffix in ("-wal", "-shm"):
+        stale = Path(str(settings.DB_PATH) + suffix)
+        if stale.exists():
+            try:
+                stale.unlink()
+                print(f"[upload-db] removed stale {stale.name}", flush=True)
+            except Exception as exc:
+                print(f"[upload-db] could not remove {stale.name}: {exc}", flush=True)
     return jsonify({"ok": True})

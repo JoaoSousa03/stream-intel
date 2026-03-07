@@ -302,36 +302,62 @@ async function toggleWatched(platform, title, itemType, seasonNum, episodeNum, e
 // ── Bulk-mark all episodes in a season ───────────────────────────────────────
 // Works whether or not the episode list has been expanded/rendered.
 async function bulkMarkSeasonEpisodes(block, platform, title, seasonNum, nowWatched) {
+  const seasonEpisodes = [];
+  let seasonRuntime = 0;
+
   // 1. Update any already-rendered episode checkboxes immediately
   block.querySelectorAll('.ep-check').forEach(epEl => {
     const s = parseInt(epEl.dataset.s), e = parseInt(epEl.dataset.e);
     const epKey = wKey(platform, title, s, e);
-    if (nowWatched) watchedSet[epKey] = true; else delete watchedSet[epKey];
+    if (nowWatched) {
+      watchedSet[epKey] = true;
+      seasonEpisodes.push(e);
+      seasonRuntime += parseInt(epEl.dataset.runtime) || 0;
+    } else {
+      delete watchedSet[epKey];
+    }
     epEl.classList.toggle('watched', nowWatched);
     epEl.textContent = nowWatched ? '✓' : '';
-    api('POST', '/api/watched', { platform, title, item_type:'episode', season_num:s, episode_num:e, watched:nowWatched, runtime_mins: parseInt(epEl.dataset.runtime) || 0 }, {loader:false});
   });
 
   // 2. If episodes haven't been fetched yet (season never opened), fetch them
-  //    to mark them in watchedSet and fire server calls.
+  //    to include them in the batch rather than skipping them entirely.
   if (!episodeFetchedSeasons.has(seasonNum)) {
     const sl = block.closest('.seasons-list');
-    if (!sl) return;
-    const tmdbId = parseInt(sl.dataset.tmdbId);
-    const mt     = sl.dataset.mt;
-    if (!tmdbId || !mt) return;
-    const data = await tmdbGet(`/${mt}/${tmdbId}/season/${seasonNum}`);
-    if (!data?.episodes?.length) return;
-    data.episodes.forEach(ep => {
-      const epKey = wKey(platform, title, seasonNum, ep.episode_number);
-      if (nowWatched) watchedSet[epKey] = true; else delete watchedSet[epKey];
-      // Don't double-fire for episodes already handled above via DOM
-      const alreadyDone = block.querySelector(`.ep-check[data-s="${seasonNum}"][data-e="${ep.episode_number}"]`);
-      if (!alreadyDone) {
-        api('POST', '/api/watched', { platform, title, item_type:'episode', season_num:seasonNum, episode_num:ep.episode_number, watched:nowWatched, runtime_mins: ep.runtime || 0 }, {loader:false});
+    const tmdbId = sl ? parseInt(sl.dataset.tmdbId) : 0;
+    const mt     = sl ? sl.dataset.mt : '';
+    if (tmdbId && mt) {
+      const data = await tmdbGet(`/${mt}/${tmdbId}/season/${seasonNum}`);
+      if (data?.episodes?.length) {
+        data.episodes.forEach(ep => {
+          const e = ep.episode_number;
+          const epKey = wKey(platform, title, seasonNum, e);
+          // Only process episodes not already handled via DOM above
+          const alreadyDone = block.querySelector(`.ep-check[data-s="${seasonNum}"][data-e="${e}"]`);
+          if (!alreadyDone) {
+            if (nowWatched) {
+              watchedSet[epKey] = true;
+              seasonEpisodes.push(e);
+              seasonRuntime += ep.runtime || 0;
+            } else {
+              delete watchedSet[epKey];
+            }
+          }
+        });
       }
-    });
+    }
   }
+
+  // One request for the whole season instead of one per episode.
+  // episodes:[] for the unwatch case tells the backend to clear the whole season row.
+  api('POST', '/api/watched/batch', {
+    platform, title, watched: nowWatched,
+    seasons: [{
+      season_num: seasonNum,
+      episodes: nowWatched ? seasonEpisodes : [],
+      runtime_mins: seasonRuntime,
+    }],
+  });
 }
 
 function updateSeasonCheck(checkEl, platform, title, seasonNum) {
@@ -828,13 +854,16 @@ async function toggleAllWatched() {
   // Wait for every season to finish loading before marking
   await Promise.all(expandPromises);
 
-  // Now mark/unmark every episode across every season block
+  // Collect all episode updates across all seasons into a single batch request.
   const allBlocks = [...document.querySelectorAll('#seasonsContent .season-block')];
+  const batchSeasons = [];
   for (const block of allBlocks) {
     const epChecks = [...block.querySelectorAll('.ep-check')];
     if (!epChecks.length) continue;
     const seasonNum = parseInt(epChecks[0].dataset.s);
 
+    const seasonEpisodes = [];
+    let seasonRuntime = 0;
     for (const epEl of epChecks) {
       const s = parseInt(epEl.dataset.s);
       const e = parseInt(epEl.dataset.e);
@@ -844,14 +873,15 @@ async function toggleAllWatched() {
         if (airDate && new Date(airDate) > new Date()) continue;
       }
       const epKey = wKey(platform, title, s, e);
-      if (nowWatched) watchedSet[epKey] = true; else delete watchedSet[epKey];
+      if (nowWatched) {
+        watchedSet[epKey] = true;
+        seasonEpisodes.push(e);
+        seasonRuntime += parseInt(epEl.dataset.runtime) || 0;
+      } else {
+        delete watchedSet[epKey];
+      }
       epEl.classList.toggle('watched', nowWatched);
       epEl.textContent = nowWatched ? '✓' : '';
-      api('POST', '/api/watched', {
-        platform, title, item_type: 'episode',
-        season_num: s, episode_num: e, watched: nowWatched,
-        runtime_mins: parseInt(epEl.dataset.runtime) || 0,
-      });
     }
 
     // Update season-level checkbox + progress
@@ -866,11 +896,15 @@ async function toggleAllWatched() {
     const prog = block.querySelector('.season-progress');
     if (prog) prog.textContent = nowWatched ? `${epChecks.length}/${epChecks.length}` : '';
 
-    api('POST', '/api/watched', {
-      platform, title, item_type: 'season',
-      season_num: seasonNum, episode_num: 0, watched: nowWatched,
-    });
+    if (nowWatched && seasonEpisodes.length > 0) {
+      batchSeasons.push({ season_num: seasonNum, episodes: seasonEpisodes, runtime_mins: seasonRuntime });
+    }
+    // For unwatching, seasons:[] below triggers a single DELETE for the whole title.
   }
+
+  // One network request replaces N×M individual episode requests.
+  // Unwatching uses seasons=[] so the backend clears the whole title in one DELETE.
+  api('POST', '/api/watched/batch', { platform, title, watched: nowWatched, seasons: nowWatched ? batchSeasons : [] });
 
   if (btn) btn.disabled = false;
   updateToggleAllBtn();
