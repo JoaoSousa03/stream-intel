@@ -11,6 +11,8 @@ from flask import Blueprint, Response, g, jsonify, request, stream_with_context
 from backend.auth import require_auth
 from backend.database import get_db
 from backend.config import settings
+from flask import send_file
+
 
 bp = Blueprint("admin", __name__, url_prefix="/api")
 
@@ -379,3 +381,14 @@ def import_library():
 
     db.commit()
     return jsonify({"library_rows": lib_count, "watched_rows": wat_count})
+
+
+@bp.route("/download-db")
+@require_auth
+def download_db():
+    _, err = _require_admin()
+    if err:
+        return err
+    return send_file(
+        settings.DB_PATH, as_attachment=True, download_name="stream_intel.db"
+    )

@@ -437,6 +437,18 @@ async function importJson() {
   }
 }
 
+async function downloadDb() {
+  const token = localStorage.getItem('token');
+  const res = await fetch('/api/download-db', { headers: { Authorization: 'Bearer ' + token } });
+  if (!res.ok) { appendLog('Download failed: ' + res.status, 'err'); return; }
+  const blob = await res.blob();
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'stream_intel.db';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
 // ── Log ───────────────────────────────────────────────────────────────────────
 function appendLog(msg, cls='') {
   const log = document.getElementById('log');
