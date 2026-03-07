@@ -350,3 +350,32 @@ def get_watchtime_titles():
         if not results:
             results = []
     return jsonify({"titles": results})
+
+
+@bp.route("/watchtime-stats", methods=["GET"])
+@require_auth
+def get_watchtime_stats():
+    """Debug: show library/watchtime counts for the current user."""
+    db  = get_db()
+    uid = g.current_user["user_id"]
+    total = db.execute("SELECT COUNT(*) FROM library WHERE user_id=?", (uid,)).fetchone()[0]
+    active = db.execute(
+        "SELECT COUNT(*) FROM library WHERE user_id=? AND status != 'not-started' AND status IS NOT NULL",
+        (uid,),
+    ).fetchone()[0]
+    statuses = [
+        dict(r) for r in db.execute(
+            "SELECT status, COUNT(*) as n FROM library WHERE user_id=? GROUP BY status",
+            (uid,),
+        ).fetchall()
+    ]
+    ws = db.execute(
+        "SELECT COUNT(*) FROM watched_seasons WHERE user_id=?", (uid,)
+    ).fetchone()[0]
+    return jsonify({
+        "user_id": uid,
+        "library_total":  total,
+        "library_active": active,
+        "library_by_status": statuses,
+        "watched_seasons_rows": ws,
+    })

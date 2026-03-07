@@ -311,6 +311,12 @@ def create_app() -> Flask:
                 ).fetchone()
                 if row:
                     info["last_scrape"] = dict(row)
+                lib = _con.execute("SELECT COUNT(*) FROM library").fetchone()[0]
+                lib_active = _con.execute(
+                    "SELECT COUNT(*) FROM library WHERE status != 'not-started' AND status IS NOT NULL"
+                ).fetchone()[0]
+                info["library_total"]  = lib
+                info["library_active"] = lib_active
         except Exception as exc:
             info["error"] = str(exc)
         return jsonify(info)

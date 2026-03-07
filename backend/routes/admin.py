@@ -302,7 +302,7 @@ def import_json():
 @bp.route("/export-library", methods=["GET"])
 @require_auth
 def export_library():
-    """Export the current user's library + watched_items as JSON."""
+    """Export the current user's library + watched_seasons as JSON."""
     uid = g.current_user["user_id"]
     db = get_db()
     library = [
@@ -315,7 +315,7 @@ def export_library():
     watched = [
         dict(r)
         for r in db.execute(
-            "SELECT platform, title, item_type, season_num, episode_num FROM watched_items WHERE user_id=?",
+            "SELECT platform, title, season_num, ep_mask, runtime_mins FROM watched_seasons WHERE user_id=?",
             (uid,),
         ).fetchall()
     ]
@@ -325,7 +325,7 @@ def export_library():
 @bp.route("/import-library", methods=["POST"])
 @require_auth
 def import_library():
-    """Import library + watched_items for the current user.
+    """Import library + watched_seasons for the current user.
     Accepts JSON: {"library": [...], "watched": [...]}
     Existing rows are replaced (UPSERT). Safe to run multiple times.
     """
@@ -361,18 +361,20 @@ def import_library():
     for row in watched:
         try:
             db.execute(
-                """INSERT INTO watched_items
-                       (user_id, platform, title, item_type, season_num, episode_num)
+                """INSERT INTO watched_seasons
+                       (user_id, platform, title, season_num, ep_mask, runtime_mins)
                    VALUES (?,?,?,?,?,?)
-                   ON CONFLICT(user_id, platform, title, item_type, season_num, episode_num)
-                   DO NOTHING""",
+                   ON CONFLICT(user_id, platform, title, season_num)
+                   DO UPDATE SET ep_mask=excluded.ep_mask,
+                                 runtime_mins=excluded.runtime_mins,
+                                 updated_at=datetime('now')""",
                 (
                     uid,
                     row["platform"],
                     row["title"],
-                    row.get("item_type", "episode"),
                     row.get("season_num", 0),
-                    row.get("episode_num", 0),
+                    row.get("ep_mask", 0),
+                    row.get("runtime_mins", 0),
                 ),
             )
             wat_count += 1
