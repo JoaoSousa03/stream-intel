@@ -20,6 +20,7 @@ import os
 import random
 import sqlite3
 import sys
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
@@ -229,7 +230,7 @@ def scrape_region(
                 label = f"{platform_name}/{type_label}/{sort_by}"
                 log.info(f"   Fetching {label} — {region}")
 
-                retry_wait = 5.0  # seconds to wait after a 403 before retrying
+                retry_wait = 15.0  # seconds to wait after a 403 before retrying
                 while True:
                     page += 1
                     try:
@@ -267,7 +268,7 @@ def scrape_region(
                     except Exception as e:
                         err_str = str(e)
                         # 403 / 429: back off and retry once before giving up
-                        if ("403" in err_str or "429" in err_str) and retry_wait <= 30:
+                        if ("403" in err_str or "429" in err_str) and retry_wait <= 60:
                             log.warning(
                                 f"   {label} page {page} ({region}) rate-limited — "
                                 f"retrying in {retry_wait:.0f}s"
@@ -319,7 +320,10 @@ def run_scrape(
     # Without a proxy, parallel requests from a shared IP (e.g. Railway) will
     # quickly trigger JustWatch's rate-limiter.  Default to 1 worker so regions
     # run sequentially; bump to 4 when a residential proxy is configured.
-    MAX_WORKERS = min(4 if PROXY_URL else 1, len(regions))
+    # 2 parallel workers with proxy: enough speed while keeping the proxy IP's
+    # request rate at a level JustWatch tolerates.  Workers are also staggered
+    # (12 s each) so they don't all fire their very-first request simultaneously.
+    MAX_WORKERS = min(2 if PROXY_URL else 1, len(regions))
     if not PROXY_URL and len(regions) > 1:
         log.warning(
             "No SCRAPER_PROXY_URL set — running sequentially (1 worker) to "
@@ -327,7 +331,18 @@ def run_scrape(
         )
     total = 0
 
+    _start_lock = threading.Lock()
+    _start_index = [0]  # mutable container so the closure can increment it
+    WORKER_STAGGER = 12  # seconds between each worker's first request
+
     def _scrape_one(region: str) -> int:
+        with _start_lock:
+            idx = _start_index[0]
+            _start_index[0] += 1
+        if idx > 0 and PROXY_URL:
+            stagger = idx * WORKER_STAGGER
+            log.info(f"   [{region}] Staggering start by {stagger}s to avoid simultaneous proxy hits")
+            time.sleep(stagger)
         session = make_session(proxy=PROXY_URL)
         warm_session(session)
         if PROXY_URL:
