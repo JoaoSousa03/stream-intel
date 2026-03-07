@@ -162,6 +162,8 @@ async function loadProfile() {
 
 // ── Profile ratings list ──────────────────────────────────────────────────────
 
+let _sortedRatingsCache = [];
+
 async function loadProfileRatings(sort, btn) {
   // Update active sort button
   if (btn) {
@@ -185,8 +187,9 @@ async function loadProfileRatings(sort, btn) {
     return (b.user_rating - a.user_rating) || (a.title||'').localeCompare(b.title||'');
   });
 
+  _sortedRatingsCache = sorted;
   const stars = n => '★'.repeat(n) + '☆'.repeat(5-n);
-  document.getElementById('profileRatingsList').innerHTML = sorted.map(r => `
+  document.getElementById('profileRatingsList').innerHTML = sorted.map((r, i) => `
     <div class="profile-rating-item" onclick="openTitleFromProfile('${escAttr2(r.platform)}','${escAttr2(r.title)}')">
       <div class="profile-rating-stars">${stars(r.user_rating)}</div>
       <div class="profile-rating-info">
@@ -194,7 +197,49 @@ async function loadProfileRatings(sort, btn) {
         <div class="profile-rating-sub">${r.year ? r.year + ' · ' : ''}${r.platform || ''}</div>
       </div>
       <span class="profile-rating-type ${r.content_type === 'tv' ? 'tag-tv' : 'tag-movie'}">${r.content_type === 'tv' ? 'TV' : 'Film'}</span>
+      <button class="rating-menu-btn" onclick="event.stopPropagation();openRatingMenu(event,${i})" title="Options">⋮</button>
     </div>`).join('');
+}
+
+function openRatingMenu(e, idx) {
+  document.getElementById('_ratingMenu')?.remove();
+  const menu = document.createElement('div');
+  menu.id = '_ratingMenu';
+  menu.className = 'rating-item-menu';
+  menu.innerHTML =
+    `<button onclick="profileRatingShare(${idx})">📤 Share</button>` +
+    `<button class="danger" onclick="profileRatingDelete(${idx})">🗑️ Delete rating</button>`;
+  document.body.appendChild(menu);
+  // Position near button
+  const rect = e.currentTarget.getBoundingClientRect();
+  const mw = menu.offsetWidth || 160;
+  menu.style.top  = (rect.bottom + 4) + 'px';
+  menu.style.left = Math.max(8, rect.right - mw) + 'px';
+  // Close on outside click
+  setTimeout(() => {
+    document.addEventListener('click', () => document.getElementById('_ratingMenu')?.remove(), {once: true});
+  }, 0);
+}
+
+function profileRatingShare(idx) {
+  document.getElementById('_ratingMenu')?.remove();
+  const r = _sortedRatingsCache[idx];
+  if (!r) return;
+  // Build a compatible title object so openShareMsgDialog can use it
+  const t = (typeof allTitles !== 'undefined' && allTitles?.find(x =>
+    x.platform === r.platform && x.title.toLowerCase() === r.title.toLowerCase()
+  )) || {platform: r.platform, title: r.title, content_type: r.content_type || 'movie', release_year: r.year || null};
+  window.currentModalTitle = t;
+  if (typeof openShareMsgDialog === 'function') openShareMsgDialog();
+}
+
+async function profileRatingDelete(idx) {
+  document.getElementById('_ratingMenu')?.remove();
+  const r = _sortedRatingsCache[idx];
+  if (!r) return;
+  await api('PATCH', '/api/library', {platform: r.platform, title: r.title, user_rating: 0});
+  _ratingsData = _ratingsData.filter(x => !(x.platform === r.platform && x.title === r.title));
+  loadProfileRatings('rating', null);
 }
 
 function escAttr2(s) { return (s||'').replace(/'/g, "\\'"); }

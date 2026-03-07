@@ -71,7 +71,7 @@ async function toggleFav(cardIdOrObj, btn) {
   const dot = document.getElementById(`favdot-${CSS.escape(tk)}`);
   if (dot) { dot.textContent='♥'; dot.classList.toggle('visible',!current); }
   _syncCardActions(tk);
-  if (activeType==='favourites') applyFilters();
+  if (activeType==='favourites' || activeStatusFilter==='favourites') applyFilters();
   refreshStats();
 }
 
@@ -114,7 +114,7 @@ async function setStatus(t, status) {
   const wlBtn = card.querySelector('.wl-btn');
   if (wlBtn) wlBtn.classList.toggle('active', status === 'watchlist');
   _syncCardActions(titleKey(t));
-  if (activeType==='watching'||activeType==='finished'||activeType==='watchlist') applyFilters();
+  if (['watching','finished','watchlist'].includes(activeType) || ['watching','finished','watchlist'].includes(activeStatusFilter)) applyFilters();
   refreshStats();
 }
 
@@ -1370,6 +1370,22 @@ async function setRatingFromModal(stars) {
   const newRating = (stars === current) ? 0 : stars; // tap same star = clear
   await syncLibrary(currentModalTitle, {user_rating: newRating}, {loader: false});
   updateModalRating(newRating);
+  if (newRating > 0 && typeof _friends !== 'undefined' && _friends.length) {
+    _showRatingShareToast();
+  }
+}
+
+function _showRatingShareToast() {
+  document.getElementById('_ratingShareToast')?.remove();
+  const toast = document.createElement('div');
+  toast.id = '_ratingShareToast';
+  toast.className = 'rating-share-toast';
+  toast.innerHTML =
+    `<span>Share your rating with friends?</span>` +
+    `<button class="rating-share-yes" onclick="openShareMsgDialog();document.getElementById('_ratingShareToast')?.remove()">Share</button>` +
+    `<button class="rating-share-no" onclick="document.getElementById('_ratingShareToast')?.remove()">×</button>`;
+  document.body.appendChild(toast);
+  setTimeout(() => { document.getElementById('_ratingShareToast')?.remove(); }, 6000);
 }
 
 function toggleModalRegions(e) { /* legacy no-op */ }
