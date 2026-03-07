@@ -47,6 +47,7 @@ from backend.scraper.justwatch import (
     warm_session,
 )
 from backend.scraper.enricher import enrich_with_imdb, enrich_from_db
+from backend.database import ensure_schema
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 
@@ -178,6 +179,7 @@ def save_to_db(records: list[dict], run_id: Optional[int], db_path: Path) -> int
 
     with sqlite3.connect(str(db_path)) as conn:
         conn.execute("PRAGMA journal_mode=WAL")
+        ensure_schema(conn)
         conn.executemany(
             """INSERT OR REPLACE INTO titles
                (run_id, scraped_at, platform, region, title, content_type, genre,

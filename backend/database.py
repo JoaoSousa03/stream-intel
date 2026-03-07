@@ -186,6 +186,13 @@ CREATE INDEX IF NOT EXISTS idx_push_user ON push_subscriptions(user_id);
 """
 
 
+def ensure_schema(conn: sqlite3.Connection) -> None:
+    """Apply the full schema (CREATE TABLE IF NOT EXISTS — safe to call on existing DBs)."""
+    conn.executescript(SCHEMA)
+    _apply_migrations(conn)
+    conn.commit()
+
+
 def get_db() -> sqlite3.Connection:
     if "db" not in g:
         g.db = sqlite3.connect(

@@ -2,7 +2,8 @@
 scrape_and_push.py — Run the scraper locally then push only the titles to Railway.
 
 Usage:
-    python scrape_and_push.py                        # scrape all 30 regions, mode=all
+    python scrape_and_push.py                        # scrape 6 key regions (fast, ~60-90 min)
+    python scrape_and_push.py --all-regions          # scrape all 30 regions (~6 hrs)
     python scrape_and_push.py --mode trending        # trending only
     python scrape_and_push.py --regions US GB PT     # specific regions
     python scrape_and_push.py --push-only            # skip scrape, just push existing local DB
@@ -25,6 +26,11 @@ load_dotenv()
 BASE = os.getenv("RAILWAY_URL", "https://stream-intel.up.railway.app")
 SECRET = os.getenv("MIGRATION_SECRET", "boaspessoal213")
 LOCAL_DB = Path(__file__).parent / "stream_intel_local.db"
+
+# Curated short list: covers major English, Portuguese, and European libraries.
+# Cuts runtime from ~6 hours (30 regions) to ~60-90 minutes.
+# Use --all-regions to run the full 30-region set.
+FAST_REGIONS = ["US", "GB", "PT", "BR", "DE", "FR"]
 
 
 def run_scrape(mode: str, regions: list[str]) -> None:
@@ -78,7 +84,12 @@ if __name__ == "__main__":
     )
     parser.add_argument("--mode", choices=["trending", "catalog", "all"], default="all")
     parser.add_argument(
-        "--regions", nargs="+", default=None, help="ISO codes, default=ALL"
+        "--regions", nargs="+", default=None, help="ISO codes (overrides default list)"
+    )
+    parser.add_argument(
+        "--all-regions",
+        action="store_true",
+        help="Scrape all 30 regions instead of the default 6 (~6 hrs)",
     )
     parser.add_argument(
         "--push-only", action="store_true", help="Skip scrape, just push existing DB"
@@ -86,6 +97,12 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if not args.push_only:
-        run_scrape(args.mode, args.regions or [])
+        if args.regions:
+            regions = args.regions
+        elif args.all_regions:
+            regions = []  # run_scrape will use DEFAULT_REGIONS (all 30)
+        else:
+            regions = FAST_REGIONS
+        run_scrape(args.mode, regions)
 
     push_db()

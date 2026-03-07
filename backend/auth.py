@@ -7,6 +7,8 @@ from functools import wraps
 from flask import g, jsonify, request
 from backend.database import get_db
 from backend.config import settings
+import os
+from flask import Blueprint, send_file, abort
 
 # ── In-memory token cache ─────────────────────────────────────────────────────
 # Avoids a DB round-trip on every authenticated request.
@@ -14,6 +16,7 @@ from backend.config import settings
 _token_cache: dict = {}
 _token_cache_lock = threading.Lock()
 _TOKEN_CACHE_TTL = 300  # re-validate from DB every 5 minutes
+well_known_bp = Blueprint("well_known", __name__)
 
 
 def _cache_set(token: str, user_row, db_expires_at: str) -> None:
@@ -95,3 +98,11 @@ def require_auth(f):
         return f(*args, **kwargs)
 
     return decorated
+
+
+@well_known_bp.route("/.well-known/assetlinks.json")
+def assetlinks():
+    path = os.path.join(os.path.dirname(__file__), "../../.well-known/assetlinks.json")
+    if os.path.exists(path):
+        return send_file(path, mimetype="application/json")
+    abort(404)

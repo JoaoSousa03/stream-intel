@@ -85,6 +85,9 @@ def enrich_from_db(db_path: Path, api_key: Optional[str] = None) -> None:
 
     with sqlite3.connect(str(db_path)) as conn:
         conn.row_factory = sqlite3.Row
+        from backend.database import ensure_schema
+
+        ensure_schema(conn)
         rows = conn.execute(
             """SELECT DISTINCT title, content_type, release_year
                FROM titles
