@@ -601,10 +601,16 @@ async function openWatchHistory() {
   _syncWhTypePills('all');
   _syncWhSortBtn('By Watch Time');
   _syncWhImdbBtn('Any IMDb');
-  const list = document.getElementById('whList');
-  if (list) list.innerHTML = '<div class="wh-loading">Loading…</div>';
+  // Reset filter panel to closed
+  const whFilterPanel = document.getElementById('whToolbarFilters');
+  if (whFilterPanel) whFilterPanel.classList.add('filters-hidden');
+  const whFilterBtn = document.getElementById('whFilterToggleBtn');
+  if (whFilterBtn) whFilterBtn.classList.remove('filters-open');
 
-  const data = await api('GET', '/api/watch_history', null, {loader: false}).catch(() => null);
+  const list = document.getElementById('whList');
+  if (list) list.innerHTML = '<div class="empty"><div class="empty-icon" style="font-size:0"><span class="spinner" style="width:36px;height:36px;border-width:3px;margin:0"></span></div><div class="empty-title" style="margin-top:20px">Loading…</div></div>';
+
+  const data = await api('GET', '/api/profile/watchtime', null, {loader: false}).catch(() => null);
   _whData = data?.titles || [];
 
   // Build genre list for dropdown
@@ -625,7 +631,16 @@ function whSetType(type, btn) {
 }
 
 function _syncWhTypePills(type) {
-  document.querySelectorAll('.wh-pill').forEach(p => p.classList.toggle('active', p.dataset.wht === type));
+  document.querySelectorAll('#whTypeBar .library-sub-tab').forEach(p => p.classList.toggle('active', p.dataset.wht === type));
+}
+
+function toggleWhFilters() {
+  const panel = document.getElementById('whToolbarFilters');
+  const btn   = document.getElementById('whFilterToggleBtn');
+  if (!panel || !btn) return;
+  const willOpen = panel.classList.contains('filters-hidden');
+  panel.classList.toggle('filters-hidden', !willOpen);
+  btn.classList.toggle('filters-open', willOpen);
 }
 
 function whSetSort(val, label, el) {
@@ -675,21 +690,30 @@ function whSetGenre(genre, el) {
 
 function whToggleDropdown(e, menuId) {
   e.stopPropagation();
+  const btn = e.currentTarget;
   const menu = document.getElementById(menuId);
   if (!menu) return;
-  const r = e.currentTarget.getBoundingClientRect();
+  const r = btn.getBoundingClientRect();
   const bottomGap = window.innerWidth <= 768 ? 70 : 8;
   menu.style.top = r.bottom + 'px';
   menu.style.maxHeight = Math.max(120, window.innerHeight - r.bottom - bottomGap) + 'px';
+  document.querySelectorAll('.genre-dropdown-menu.open').forEach(m => { if (m !== menu) m.classList.remove('open'); });
+  document.querySelectorAll('.sort-select.dropdown-open').forEach(b => { if (b !== btn) b.classList.remove('dropdown-open'); });
   menu.classList.toggle('open');
+  btn.classList.toggle('dropdown-open', menu.classList.contains('open'));
+  if (!menu.classList.contains('open')) btn.blur();
 }
 
 // Close wh dropdowns on outside click
 document.addEventListener('click', e => {
+  const btnIds = {whImdbMenu:'whImdbBtn', whGenreMenu:'whGenreBtn', whSortMenu:'whSortBtn'};
   ['whImdbMenu','whGenreMenu','whSortMenu'].forEach(id => {
     const menu = document.getElementById(id);
     const wrap = menu?.closest('.genre-dropdown');
-    if (menu && wrap && !wrap.contains(e.target)) menu.classList.remove('open');
+    if (menu && wrap && !wrap.contains(e.target)) {
+      menu.classList.remove('open');
+      document.getElementById(btnIds[id])?.classList.remove('dropdown-open');
+    }
   });
 });
 
@@ -724,36 +748,51 @@ function _whFmtTime(mins) {
 }
 
 function _renderWhList(items) {
-  const list = document.getElementById('whList');
-  if (!list) return;
+  const wrap = document.getElementById('whList');
+  if (!wrap) return;
   if (!items.length) {
-    list.innerHTML = '<div class="wh-empty">No titles found.</div>';
+    wrap.innerHTML = '<div class="empty"><div class="empty-icon">🔍</div><div class="empty-title">No titles found.</div><div class="empty-sub">Try adjusting your filters.</div></div>';
     return;
   }
-  list.innerHTML = items.map(t => {
-    const isTV  = t.content_type === 'tv';
-    const icon  = isTV ? '📺' : '🎬';
-    const typeCls = isTV ? 'tv' : 'movie';
-    const statusClsMap = {watching:'watching',finished:'finished',watchlist:'watchlist'};
-    const statusCls = statusClsMap[t.status] || '';
-    const time = _whFmtTime(t.watch_mins);
-    const epInfo = (isTV && t.episodes_watched) ? `${t.episodes_watched} ep${t.episodes_watched!==1?'s':''} watched` : '';
-    const imdb  = t.imdb_score ? t.imdb_score.toFixed(1) : '';
-    return `
-      <div class="wh-item" onclick="_whOpenTitle('${(t.platform||'').replace(/'/g,"\\'") }','${(t.title||'').replace(/'/g,"\\'")}')">        <div class="wh-item-icon">${icon}</div>
-        <div class="wh-item-info">
-          <div class="wh-item-title">${typeof escHtml==='function'?escHtml(t.title):t.title}</div>
-          <div class="wh-item-meta">
-            ${t.release_year?`<span>${t.release_year}</span>`:''}
-            <span class="wh-type-badge ${typeCls}">${isTV?'TV':'Film'}</span>
-            ${t.status?`<span class="wh-status-badge ${statusCls}">${t.status}</span>`:''}
-            ${imdb?`<span style="color:var(--gold)">★ ${imdb}</span>`:''}
-            ${epInfo?`<span style="color:var(--muted);font-size:11px">${epInfo}</span>`:''}
-          </div>
-        </div>
-        <div class="wh-item-time">${time}</div>
-      </div>`;
-  }).join('');
+  // Make sure all wh items are reachable via openModal(key)
+  if (typeof cardDataStore !== 'undefined') {
+    items.forEach(wh => { if (!cardDataStore[titleKey(wh)]) cardDataStore[titleKey(wh)] = wh; });
+  }
+  // Resolve to full allTitles entries once (for fav/wl state, tomatometer, etc.)
+  const tList = items.map(wh => {
+    const full = (typeof allTitles !== 'undefined' && allTitles)
+      ? allTitles.find(x => titleKey(x) === titleKey(wh))
+      : null;
+    return full || wh;
+  });
+  const grid = document.createElement('div');
+  grid.className = 'grid';
+  grid.innerHTML = (typeof renderCard === 'function')
+    ? tList.map((t, i) => renderCard(t, i)).join('')
+    : '';
+  wrap.innerHTML = '';
+  wrap.appendChild(grid);
+  wrap.parentElement.scrollTop = 0;
+  // Load posters using direct element references scoped to this grid.
+  // Using getElementById would return the catalog card with the same ID when a
+  // title exists in both views — so we walk grid.children instead.
+  if (typeof fetchPosterUrl === 'function') {
+    tList.forEach((t, i) => {
+      const cardEl   = grid.children[i];
+      if (!cardEl) return;
+      const posterEl = cardEl.querySelector('.card-poster');
+      if (!posterEl) return;
+      fetchPosterUrl(t.title, t.release_year, t.content_type).then(imgs => {
+        if (!imgs || !posterEl.isConnected) return;
+        const placeholder = posterEl.querySelector('.card-poster-placeholder');
+        const img = document.createElement('img');
+        img.src = imgs.poster; img.alt = t.title;
+        img.onload  = () => { if (placeholder) placeholder.remove(); };
+        img.onerror = () => img.remove();
+        posterEl.insertBefore(img, posterEl.querySelector('.card-poster-overlay'));
+      });
+    });
+  }
 }
 
 function _whOpenTitle(platform, title) {

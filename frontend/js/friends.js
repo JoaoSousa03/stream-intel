@@ -403,7 +403,10 @@ function toggleNotifPanel() {
     }
   }
   panel.classList.toggle('open', _notifPanelOpen);
-  if (btn) btn.classList.toggle('active', _notifPanelOpen);
+  if (btn) {
+    btn.classList.toggle('notif-open', _notifPanelOpen);
+    btn.setAttribute('aria-expanded', String(_notifPanelOpen));
+  }
   if (_notifPanelOpen) loadNotifications(true);
 }
 
@@ -412,18 +415,25 @@ document.addEventListener('click', e => {
   if (!_notifPanelOpen) return;
   const btn   = document.getElementById('notifBtn');
   const panel = document.getElementById('notifPanel');
-  if (btn && panel && !btn.contains(e.target) && !panel.contains(e.target)) {
+  // Ignore clicks on the button itself — toggleNotifPanel() handles those
+  if (btn && btn.contains(e.target)) return;
+  if (btn && panel && !panel.contains(e.target)) {
     _notifPanelOpen = false;
     panel.classList.remove('open');
-    btn.classList.remove('active');
+    btn.classList.remove('notif-open');
+    btn.setAttribute('aria-expanded', 'false');
   }
 });
 
 // ── Friends overlay ───────────────────────────────────────────────────────────
 async function openFriends() {
-  if (!_handlingPop) history.pushState({ modal: 'friends' }, '');
   const _fo = document.getElementById('friendsOverlay');
+  // Toggle: if already open, close it
+  if (_fo && _fo.classList.contains('open')) { closeFriends(); return; }
+  if (!_handlingPop) history.pushState({ modal: 'friends' }, '');
   if (_fo) { _fo.classList.remove('hidden', 'closing'); _fo.classList.add('open'); }
+  const friendsBtn = document.querySelector('.bottom-nav-btn[data-bnav="friends"]');
+  if (friendsBtn) friendsBtn.classList.add('panel-open');
   await Promise.all([
     loadFriendsPanel(),
     loadFriendRequests(),
@@ -442,6 +452,8 @@ function closeFriends() {
     overlay.classList.remove('closing');
     overlay.classList.add('hidden');
   }, { once: true });
+  const friendsBtn = document.querySelector('.bottom-nav-btn[data-bnav="friends"]');
+  if (friendsBtn) friendsBtn.classList.remove('panel-open');
 }
 
 async function loadFriendsPanel() {

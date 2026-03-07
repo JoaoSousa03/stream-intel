@@ -1164,12 +1164,17 @@ function updateRegionBtn() {
 
 function toggleRegionDropdown(e) {
   e.stopPropagation();
+  const btn = e.currentTarget;
   const menu = document.getElementById('regionDropdownMenu');
-  const r = e.currentTarget.getBoundingClientRect();
+  const r = btn.getBoundingClientRect();
   const bottomGap = window.innerWidth <= 768 ? 70 : 8;
   menu.style.top = r.bottom + 'px';
   menu.style.maxHeight = Math.max(120, window.innerHeight - r.bottom - bottomGap) + 'px';
+  document.querySelectorAll('.genre-dropdown-menu.open').forEach(m => { if (m !== menu) m.classList.remove('open'); });
+  document.querySelectorAll('.sort-select.dropdown-open').forEach(b => { if (b !== btn) b.classList.remove('dropdown-open'); });
   menu.classList.toggle('open');
+  btn.classList.toggle('dropdown-open', menu.classList.contains('open'));
+  if (!menu.classList.contains('open')) btn.blur();
 }
 
 
@@ -1183,6 +1188,7 @@ function applyFilters(immediate=false) {
 
 // Cached sort key to avoid re-sorting when only the page changes
 let _lastSort = null;
+let _lastActiveType = null;  // also track view so switching views always re-sorts
 let _sortedTitles = [];
 
 function _applyFiltersNow() {
@@ -1221,9 +1227,12 @@ function _applyFiltersNow() {
     return true;
   });
 
-  // Only re-sort when the sort key has actually changed
-  if (sort !== _lastSort || _sortedTitles.length !== filtered.length) {
+  // Re-sort when sort key changes, view changes, or result count changes.
+  // Checking activeType prevents the stale-intersection bug where two different views
+  // have the same filtered count but completely different titles.
+  if (sort !== _lastSort || activeType !== _lastActiveType || _sortedTitles.length !== filtered.length) {
     _lastSort = sort;
+    _lastActiveType = activeType;
     filtered.sort((a,b) => {
       if (sort==='rank')  return (a.ranking_position||999)-(b.ranking_position||999);
       if (sort==='imdb')  return (b.imdb_score||0)-(a.imdb_score||0);
@@ -1611,6 +1620,8 @@ function toggleNavDrawer() {
   const open   = drawer.classList.toggle('open');
   bg.classList.toggle('open', open);
   document.body.classList.toggle('nav-drawer-open', open);
+  const moreBtn = document.querySelector('.bottom-nav-btn[data-bnav="more"]');
+  if (moreBtn) moreBtn.classList.toggle('panel-open', open);
 }
 
 function closeNavDrawer() {
@@ -1621,6 +1632,8 @@ function closeNavDrawer() {
   drawer.classList.remove('open');
   bg.classList.remove('open');
   document.body.classList.remove('nav-drawer-open');
+  const moreBtn = document.querySelector('.bottom-nav-btn[data-bnav="more"]');
+  if (moreBtn) moreBtn.classList.remove('panel-open');
 }
 
 // ── Swipe-down-to-close for bottom-sheet nav drawer ───────────────────────────
@@ -1674,10 +1687,14 @@ function closeNavDrawer() {
 
 // ── User avatar dropdown ───────────────────────────────────────────────────────
 function toggleUserMenu() {
-  document.getElementById('userMenuDropdown').classList.toggle('open');
+  const dropdown = document.getElementById('userMenuDropdown');
+  const btn = document.getElementById('userAvatarBtn');
+  const isOpen = dropdown.classList.toggle('open');
+  if (btn) btn.classList.toggle('menu-open', isOpen);
 }
 function closeUserMenu() {
   document.getElementById('userMenuDropdown')?.classList.remove('open');
+  document.getElementById('userAvatarBtn')?.classList.remove('menu-open');
 }
 // Close when clicking outside the menu
 document.addEventListener('click', e => {

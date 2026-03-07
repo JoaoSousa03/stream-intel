@@ -236,7 +236,10 @@ button, a, input, select, textarea, [onclick], label,
     cursor: pointer; flex-shrink: 0; padding: 0;
     transition: border-color .18s, box-shadow .18s;
   }
-  .user-avatar-btn:hover { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(94,234,212,.24); }
+  .user-avatar-btn.menu-open { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(94,234,212,.24); }
+  @media (hover: hover) {
+    .user-avatar-btn:hover { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(94,234,212,.24); }
+  }
   .user-avatar-btn img { width: 100%; height: 100%; object-fit: cover; display: block; border-radius: 50%; }
   #headerAvatarInitial { font-size: 18px; font-weight: 800; color: #0f1117; line-height: 1; pointer-events: none; }
   .user-menu-dropdown {
@@ -469,8 +472,14 @@ button, a, input, select, textarea, [onclick], label,
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%235a6878' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
     background-repeat: no-repeat; background-position: right 10px center;
     transition: border-color var(--transition);
+    touch-action: manipulation;
   }
-  .sort-select:focus { border-color: var(--accent); }
+  /* persistent open state — uses a named class to avoid :active pseudo-class conflict on mobile */
+  .sort-select.dropdown-open { border-color: var(--accent); color: var(--text); }
+  @media (hover: hover) {
+    .sort-select:hover { border-color: var(--accent); }
+    .sort-select:focus { border-color: var(--accent); }
+  }
 
   /* ── Discover panel ── */
   .discover-wrap { padding: 28px; display: flex; flex-direction: column; gap: 48px; }
@@ -499,13 +508,15 @@ button, a, input, select, textarea, [onclick], label,
     cursor: pointer; color: var(--muted); transition: border-color var(--transition), color var(--transition);
     position: relative;
   }
-  .notif-btn.active, .notif-btn:active {
-    border-color: var(--accent) !important;
-    box-shadow: 0 0 0 3px rgba(94,234,212,.18) !important;
-    color: var(--accent) !important;
-    background: var(--surface) !important;
+  .notif-btn.notif-open {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(94,234,212,.18);
+    color: var(--accent);
+    background: var(--surface);
   }
-  .notif-btn:hover { border-color: var(--accent); color: var(--accent); }
+  @media (hover: hover) {
+    .notif-btn:hover { border-color: var(--accent); color: var(--accent); }
+  }
   .notif-badge {
     position: absolute; top: -4px; right: -4px; min-width: 17px; height: 17px;
     background: #e53e3e; color: #fff; border-radius: 9px; font-size: 10px; font-weight: 700;
@@ -1708,7 +1719,9 @@ button, a, input, select, textarea, [onclick], label,
   transition: all var(--transition);
   touch-action: manipulation;
 }
-.library-sub-tab:hover { border-color: var(--accent); color: var(--accent); }
+@media (hover: hover) {
+  .library-sub-tab:hover { border-color: var(--accent); color: var(--accent); }
+}
 .library-sub-tab.active {
   background: rgba(94,234,212,.12); border-color: var(--accent);
   color: var(--accent); font-weight: 600;
@@ -1797,6 +1810,9 @@ body.nav-drawer-open { overflow: hidden; }
   }
 
   /* ── Top header ── */
+  /* Remove backdrop-filter on mobile: blur on position:sticky causes GPU compositing
+     flicker during scroll on iOS Safari and mobile Chrome. Use solid bg instead. */
+  .top-header { backdrop-filter: none; background: rgba(19,21,26,1); }
   .header-row1 {
     height: 60px;
     padding: 0 14px 0 0;
@@ -1886,6 +1902,8 @@ body.nav-drawer-open { overflow: hidden; }
   .bottom-nav-btn svg { transition: transform .15s ease, stroke .2s; }
   .bottom-nav-btn.active { color: var(--accent); }
   .bottom-nav-btn.active svg { stroke: var(--accent); transform: scale(1.12); }
+  .bottom-nav-btn.panel-open { color: var(--accent); }
+  .bottom-nav-btn.panel-open svg { stroke: var(--accent); transform: scale(1.12); }
   .bottom-nav-btn:active svg { transform: scale(.88); }
   /* Push page content above bottom nav */
   .main { padding-bottom: calc(60px + env(safe-area-inset-bottom, 0px)); }
@@ -1917,7 +1935,9 @@ body.nav-drawer-open { overflow: hidden; }
     max-height: 600px; overflow: hidden;
     backdrop-filter: none; /* must be none: backdrop-filter creates a new containing block
                               for position:fixed descendants, breaking dropdown positioning */
-    transition: max-height 0.28s ease, padding 0.28s ease, border 0.28s ease;
+    /* transition only for the user-toggled filter expand/collapse, NOT for scroll hide/show
+       (scroll hide is instant via will-change:max-height to avoid compositing flicker) */
+    transition: max-height 0.25s ease, padding 0.25s ease, border 0.25s ease;
   }
   .toolbar.toolbar-hide { max-height: 0; padding-top: 0; padding-bottom: 0; border-bottom-width: 0; }
   /* show search + toggle button on one row */
@@ -2295,8 +2315,11 @@ body.nav-drawer-open { overflow: hidden; }
   border-radius: var(--radius); padding: 16px 18px;
   cursor: pointer;
   transition: background var(--transition), border-color var(--transition);
+  touch-action: manipulation;
 }
-.profile-stat-card:hover { background: var(--card); border-color: var(--accent); }
+@media (hover: hover) {
+  .profile-stat-card:hover { background: var(--card); border-color: var(--accent); }
+}
 .profile-stat-card:active { opacity: 0.8; }
 .profile-stat-value {
   font-size: 32px; font-weight: 800; line-height: 1;

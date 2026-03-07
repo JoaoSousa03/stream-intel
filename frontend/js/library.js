@@ -1522,22 +1522,22 @@ function buildGenreFilter() {
 function toggleGenre(genre,el){if(activeGenres.has(genre)){activeGenres.delete(genre);el.classList.remove('checked');}else{activeGenres.add(genre);el.classList.add('checked');}updateGenreBtn();applyFilters();}
 function clearGenres(){activeGenres.clear();document.querySelectorAll('#genreDropdownMenu .genre-option').forEach(e=>e.classList.remove('checked'));updateGenreBtn();applyFilters();}
 function updateGenreBtn(){const b=document.getElementById('genreDropdownBtn');if(activeGenres.size===0)b.textContent='All Genres ▾';else if(activeGenres.size===1)b.textContent=formatGenre([...activeGenres][0])+' ▾';else b.textContent=`${activeGenres.size} Genres ▾`;}
-function toggleGenreDropdown(e){e.stopPropagation();const menu=document.getElementById('genreDropdownMenu');const r=e.currentTarget.getBoundingClientRect();const bottomGap=window.innerWidth<=768?70:8;menu.style.top=r.bottom+'px';menu.style.maxHeight=Math.max(120,window.innerHeight-r.bottom-bottomGap)+'px';menu.classList.toggle('open');}
+function toggleGenreDropdown(e){e.stopPropagation();const btn=e.currentTarget;const menu=document.getElementById('genreDropdownMenu');const r=btn.getBoundingClientRect();const bottomGap=window.innerWidth<=768?70:8;menu.style.top=r.bottom+'px';menu.style.maxHeight=Math.max(120,window.innerHeight-r.bottom-bottomGap)+'px';document.querySelectorAll('.genre-dropdown-menu.open').forEach(m=>{if(m!==menu)m.classList.remove('open');});document.querySelectorAll('.sort-select.dropdown-open').forEach(b=>{if(b!==btn)b.classList.remove('dropdown-open');});menu.classList.toggle('open');btn.classList.toggle('dropdown-open',menu.classList.contains('open'));if(!menu.classList.contains('open'))btn.blur();}
 
 // ── Votes dropdown ────────────────────────────────────────────────────────────
 function toggleVotesDropdown(e) {
   e.stopPropagation();
+  const btn = e.currentTarget;
   const menu = document.getElementById('votesDropdownMenu');
-  const r = e.currentTarget.getBoundingClientRect();
+  const r = btn.getBoundingClientRect();
   const bottomGap = window.innerWidth <= 768 ? 70 : 8;
   menu.style.top = r.bottom + 'px';
   menu.style.maxHeight = Math.max(120, window.innerHeight - r.bottom - bottomGap) + 'px';
+  document.querySelectorAll('.genre-dropdown-menu.open').forEach(m => { if (m !== menu) m.classList.remove('open'); });
+  document.querySelectorAll('.sort-select.dropdown-open').forEach(b => { if (b !== btn) b.classList.remove('dropdown-open'); });
   menu.classList.toggle('open');
-  // Mobile: Remove stuck active state
-  if (!menu.classList.contains('open')) {
-    e.currentTarget.blur();
-    e.currentTarget.classList.remove('active');
-  }
+  btn.classList.toggle('dropdown-open', menu.classList.contains('open'));
+  if (!menu.classList.contains('open')) btn.blur();
 }
 function setVotesFilter(val, label, el) {
   activeVotes = val;
@@ -1559,17 +1559,17 @@ function setVotesFilter(val, label, el) {
 // ── Sort dropdown ─────────────────────────────────────────────────────────────
 function toggleSortDropdown(e) {
   e.stopPropagation();
+  const btn = e.currentTarget;
   const menu = document.getElementById('sortDropdownMenu');
-  const r = e.currentTarget.getBoundingClientRect();
+  const r = btn.getBoundingClientRect();
   const bottomGap = window.innerWidth <= 768 ? 70 : 8;
   menu.style.top = r.bottom + 'px';
   menu.style.maxHeight = Math.max(120, window.innerHeight - r.bottom - bottomGap) + 'px';
+  document.querySelectorAll('.genre-dropdown-menu.open').forEach(m => { if (m !== menu) m.classList.remove('open'); });
+  document.querySelectorAll('.sort-select.dropdown-open').forEach(b => { if (b !== btn) b.classList.remove('dropdown-open'); });
   menu.classList.toggle('open');
-  // Mobile: Remove stuck active state
-  if (!menu.classList.contains('open')) {
-    e.currentTarget.blur();
-    e.currentTarget.classList.remove('active');
-  }
+  btn.classList.toggle('dropdown-open', menu.classList.contains('open'));
+  if (!menu.classList.contains('open')) btn.blur();
 }
 function setSortFilter(val, label, el) {
   activeSort = val;
@@ -1595,16 +1595,16 @@ function buildExcludeFilter(){
 function toggleExclude(genre,el){if(excludedGenres.has(genre)){excludedGenres.delete(genre);el.classList.remove('checked');}else{excludedGenres.add(genre);el.classList.add('checked');}updateExcludeBtn();applyFilters();}
 function clearExcluded(){excludedGenres.clear();document.querySelectorAll('#genreExcludeMenu .genre-option').forEach(e=>e.classList.remove('checked'));updateExcludeBtn();applyFilters();}
 function updateExcludeBtn(){const b=document.getElementById('genreExcludeBtn');if(excludedGenres.size===0){b.textContent='Exclude Genres ▾';b.style.color='';b.style.borderColor='';}else if(excludedGenres.size===1){b.textContent='✕ '+formatGenre([...excludedGenres][0])+' ▾';b.style.color='var(--accent2)';b.style.borderColor='var(--accent2)';}else{b.textContent=`✕ ${excludedGenres.size} Genres ▾`;b.style.color='var(--accent2)';b.style.borderColor='var(--accent2)';}}
-function toggleExcludeDropdown(e){e.stopPropagation();const menu=document.getElementById('genreExcludeMenu');const r=e.currentTarget.getBoundingClientRect();const bottomGap=window.innerWidth<=768?70:8;menu.style.top=r.bottom+'px';menu.style.maxHeight=Math.max(120,window.innerHeight-r.bottom-bottomGap)+'px';menu.classList.toggle('open');}
+function toggleExcludeDropdown(e){e.stopPropagation();const btn=e.currentTarget;const menu=document.getElementById('genreExcludeMenu');const r=btn.getBoundingClientRect();const bottomGap=window.innerWidth<=768?70:8;menu.style.top=r.bottom+'px';menu.style.maxHeight=Math.max(120,window.innerHeight-r.bottom-bottomGap)+'px';document.querySelectorAll('.genre-dropdown-menu.open').forEach(m=>{if(m!==menu)m.classList.remove('open');});document.querySelectorAll('.sort-select.dropdown-open').forEach(b=>{if(b!==btn)b.classList.remove('dropdown-open');});menu.classList.toggle('open');btn.classList.toggle('dropdown-open',menu.classList.contains('open'));if(!menu.classList.contains('open'))btn.blur();}
 document.addEventListener('click',(e)=>{
-  if(!document.getElementById('genreDropdown').contains(e.target)) document.getElementById('genreDropdownMenu').classList.remove('open');
-  if(!document.getElementById('genreExcludeDropdown').contains(e.target)) document.getElementById('genreExcludeMenu').classList.remove('open');
+  if(!document.getElementById('genreDropdown').contains(e.target)) { document.getElementById('genreDropdownMenu').classList.remove('open'); document.getElementById('genreDropdownBtn')?.classList.remove('dropdown-open'); }
+  if(!document.getElementById('genreExcludeDropdown').contains(e.target)) { document.getElementById('genreExcludeMenu').classList.remove('open'); document.getElementById('genreExcludeBtn')?.classList.remove('dropdown-open'); }
   const rd = document.getElementById('regionDropdown');
-  if(rd && !rd.contains(e.target)) document.getElementById('regionDropdownMenu')?.classList.remove('open');
+  if(rd && !rd.contains(e.target)) { document.getElementById('regionDropdownMenu')?.classList.remove('open'); document.getElementById('regionDropdownBtn')?.classList.remove('dropdown-open'); }
   const vd = document.getElementById('votesDropdown');
-  if(vd && !vd.contains(e.target)) document.getElementById('votesDropdownMenu')?.classList.remove('open');
+  if(vd && !vd.contains(e.target)) { document.getElementById('votesDropdownMenu')?.classList.remove('open'); document.getElementById('votesDropdownBtn')?.classList.remove('dropdown-open'); }
   const sd = document.getElementById('sortDropdown');
-  if(sd && !sd.contains(e.target)) document.getElementById('sortDropdownMenu')?.classList.remove('open');
+  if(sd && !sd.contains(e.target)) { document.getElementById('sortDropdownMenu')?.classList.remove('open'); document.getElementById('sortDropdownBtn')?.classList.remove('dropdown-open'); }
 });
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

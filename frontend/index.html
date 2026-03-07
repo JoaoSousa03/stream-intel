@@ -826,54 +826,60 @@
     <button class="detail-back-btn" onclick="closeWatchHistory()">← Back</button>
     <span class="detail-back-crumb">Watch History</span>
   </div>
-  <div class="profile-scroll">
-    <div class="wh-wrap">
-      <!-- Filter pills -->
-      <div class="wh-type-pills">
-        <button class="wh-pill active" data-wht="all"    onclick="whSetType('all',this)">All</button>
-        <button class="wh-pill"        data-wht="movie"  onclick="whSetType('movie',this)">🎬 Movies</button>
-        <button class="wh-pill"        data-wht="tv"     onclick="whSetType('tv',this)">📺 TV Shows</button>
-      </div>
-      <!-- Controls row -->
-      <div class="wh-controls">
-        <div class="wh-search-wrap">
-          <input class="wh-search-input" id="whSearchInput" type="text"
-                 placeholder="Search…" autocomplete="off"
-                 oninput="whApplyFilters()">
-        </div>
-        <!-- IMDb filter -->
-        <div class="genre-dropdown" id="whImdbDropdown">
-          <button class="sort-select genre-dropdown-btn" id="whImdbBtn"
-                  onclick="whToggleDropdown(event,'whImdbMenu')">Any IMDb ▾</button>
-          <div class="genre-dropdown-menu" id="whImdbMenu">
-            <div class="genre-option checked" onclick="whSetImdb(0,'Any IMDb',this)"><span class="genre-checkbox"></span>Any IMDb</div>
-            <div class="genre-option" onclick="whSetImdb(6,'6.0+',this)"><span class="genre-checkbox"></span>6.0+</div>
-            <div class="genre-option" onclick="whSetImdb(7,'7.0+',this)"><span class="genre-checkbox"></span>7.0+</div>
-            <div class="genre-option" onclick="whSetImdb(7.5,'7.5+',this)"><span class="genre-checkbox"></span>7.5+</div>
-            <div class="genre-option" onclick="whSetImdb(8,'8.0+',this)"><span class="genre-checkbox"></span>8.0+</div>
-          </div>
-        </div>
-        <!-- Genre filter -->
-        <div class="genre-dropdown" id="whGenreDropdown">
-          <button class="sort-select genre-dropdown-btn" id="whGenreBtn"
-                  onclick="whToggleDropdown(event,'whGenreMenu')">All Genres ▾</button>
-          <div class="genre-dropdown-menu" id="whGenreMenu"></div>
-        </div>
-        <!-- Sort -->
-        <div class="genre-dropdown" id="whSortDropdown">
-          <button class="sort-select genre-dropdown-btn" id="whSortBtn"
-                  onclick="whToggleDropdown(event,'whSortMenu')">By Watch Time ▾</button>
-          <div class="genre-dropdown-menu" id="whSortMenu">
-            <div class="genre-option checked" onclick="whSetSort('time','By Watch Time',this)"><span class="genre-checkbox"></span>By Watch Time</div>
-            <div class="genre-option" onclick="whSetSort('title','Title A–Z',this)"><span class="genre-checkbox"></span>Title A–Z</div>
-            <div class="genre-option" onclick="whSetSort('year','Year',this)"><span class="genre-checkbox"></span>Year</div>
-            <div class="genre-option" onclick="whSetSort('imdb','IMDb Score',this)"><span class="genre-checkbox"></span>IMDb Score</div>
-          </div>
-        </div>
-      </div>
-      <!-- Results -->
-      <div id="whList" class="wh-list"></div>
+  <!-- Type tabs — match library sub-bar style -->
+  <div class="library-sub-bar" id="whTypeBar">
+    <button class="library-sub-tab active" data-wht="all"   onclick="whSetType('all',this)">📚 All</button>
+    <button class="library-sub-tab"        data-wht="movie" onclick="whSetType('movie',this)">🎬 Movies</button>
+    <button class="library-sub-tab"        data-wht="tv"    onclick="whSetType('tv',this)">📺 TV Shows</button>
+  </div>
+  <!-- Toolbar — search + collapsible filters -->
+  <div class="toolbar" id="whSubToolbar">
+    <div class="search-wrap">
+      <input class="search-box" id="whSearchInput" type="text"
+             placeholder="Search titles…" autocomplete="off"
+             oninput="whApplyFilters()">
     </div>
+    <button class="filter-toggle-btn" id="whFilterToggleBtn" onclick="toggleWhFilters()">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M1 3h12M3 7h8M5 11h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+      <span class="filter-toggle-label">Filters</span>
+    </button>
+    <div class="toolbar-filters filters-hidden" id="whToolbarFilters">
+      <!-- IMDb filter -->
+      <div class="genre-dropdown" id="whImdbDropdown">
+        <button class="sort-select genre-dropdown-btn" id="whImdbBtn"
+                onclick="whToggleDropdown(event,'whImdbMenu')">Any IMDb ▾</button>
+        <div class="genre-dropdown-menu" id="whImdbMenu">
+          <div class="genre-option checked" onclick="whSetImdb(0,'Any IMDb',this)"><span class="genre-checkbox"></span>Any IMDb</div>
+          <div class="genre-option" onclick="whSetImdb(6,'6.0+',this)"><span class="genre-checkbox"></span>6.0+</div>
+          <div class="genre-option" onclick="whSetImdb(7,'7.0+',this)"><span class="genre-checkbox"></span>7.0+</div>
+          <div class="genre-option" onclick="whSetImdb(7.5,'7.5+',this)"><span class="genre-checkbox"></span>7.5+</div>
+          <div class="genre-option" onclick="whSetImdb(8,'8.0+',this)"><span class="genre-checkbox"></span>8.0+</div>
+        </div>
+      </div>
+      <!-- Genre filter -->
+      <div class="genre-dropdown" id="whGenreDropdown">
+        <button class="sort-select genre-dropdown-btn" id="whGenreBtn"
+                onclick="whToggleDropdown(event,'whGenreMenu')">All Genres ▾</button>
+        <div class="genre-dropdown-menu" id="whGenreMenu"></div>
+      </div>
+      <!-- Sort -->
+      <div class="genre-dropdown" id="whSortDropdown">
+        <button class="sort-select genre-dropdown-btn" id="whSortBtn"
+                onclick="whToggleDropdown(event,'whSortMenu')">By Watch Time ▾</button>
+        <div class="genre-dropdown-menu" id="whSortMenu">
+          <div class="genre-option checked" onclick="whSetSort('time','By Watch Time',this)"><span class="genre-checkbox"></span>By Watch Time</div>
+          <div class="genre-option" onclick="whSetSort('title','Title A–Z',this)"><span class="genre-checkbox"></span>Title A–Z</div>
+          <div class="genre-option" onclick="whSetSort('year','Year',this)"><span class="genre-checkbox"></span>Year</div>
+          <div class="genre-option" onclick="whSetSort('imdb','IMDb Score',this)"><span class="genre-checkbox"></span>IMDb Score</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- Scrollable card grid -->
+  <div class="profile-scroll">
+    <div id="whList" class="grid-wrap"></div>
   </div>
 </div>
 
@@ -1048,13 +1054,19 @@
 <script src="/js/friends.js"></script>
 <script>
   // Hide toolbar on scroll-down, show on scroll-up (mobile only)
+  // Uses hysteresis: require 48px movement before changing state to prevent
+  // flicker from micro-scrolls and momentum scrolling.
   (function () {
     var toolbar = document.getElementById('subToolbar');
     var lastY = 0;
     var ticking = false;
+    var baseY = 0;       // Y position where the current scroll direction started
+    var isHidden = false;
+    var THRESHOLD = 48;  // px of consistent scroll required to change state
+
     function onScroll() {
       if (window.innerWidth > 768 || window._ignoreToolbarScroll) {
-        toolbar.classList.remove('toolbar-hide');
+        if (isHidden) { isHidden = false; toolbar.classList.remove('toolbar-hide'); }
         lastY = window.scrollY;
         ticking = false;
         return;
@@ -1062,16 +1074,22 @@
       // Don't hide if filters panel is open
       var filtersPanel = document.getElementById('toolbarFilters');
       if (filtersPanel && !filtersPanel.classList.contains('filters-hidden')) {
-        ticking = false;
+        baseY = window.scrollY; lastY = baseY; ticking = false;
         return;
       }
       var y = window.scrollY;
-      if (y > lastY && y > 80) {
+      // Reset base when direction reverses
+      if ((y > lastY) !== (lastY > baseY) || Math.abs(y - baseY) === 0) baseY = lastY;
+      lastY = y;
+      // Decide state change only after threshold is met
+      var delta = y - baseY;
+      if (!isHidden && delta > THRESHOLD && y > 80) {
+        isHidden = true;
         toolbar.classList.add('toolbar-hide');
-      } else {
+      } else if (isHidden && (delta < -THRESHOLD || y <= 80)) {
+        isHidden = false;
         toolbar.classList.remove('toolbar-hide');
       }
-      lastY = y;
       ticking = false;
     }
     window.addEventListener('scroll', function () {
