@@ -1398,9 +1398,17 @@ button, a, input, select, textarea, [onclick], label,
   .status-btn-lg:disabled { opacity: 0.35; cursor: not-allowed; }
   .status-btn-lg:disabled:hover { color: var(--muted); background: transparent; }
   .status-btn-icon { width: 15px; height: 15px; flex-shrink: 0; pointer-events: none; }
+  /* Give each icon its status colour at rest (70 % opacity) */
+  #sBtn3 .status-btn-icon { color: rgba(167,139,250,.75); }
+  #sBtn1 .status-btn-icon { color: rgba(96, 165,250,.75); }
+  #sBtn2 .status-btn-icon { color: rgba(52, 211,153,.75); }
+  .status-btn-lg.active-watchlist { color: var(--watchlist); background: rgba(167,139,250,.15); }
   .status-btn-lg.active-watching  { color: var(--watching);  background: rgba(96,165,250,.15);  }
   .status-btn-lg.active-finished  { color: var(--finished);  background: rgba(52,211,153,.15);  }
-  .status-btn-lg.active-watchlist { color: var(--watchlist); background: rgba(167,139,250,.15); }
+  /* Active: boost icon to full colour */
+  .status-btn-lg.active-watchlist .status-btn-icon { color: var(--watchlist); }
+  .status-btn-lg.active-watching  .status-btn-icon { color: var(--watching);  }
+  .status-btn-lg.active-finished  .status-btn-icon { color: var(--finished);  }
 
   /* ── Send-to-friend button ── */
   .modal-share-row { padding: 0 500px 20px; }

@@ -1507,12 +1507,15 @@ function _renderModalPlatformPills(t, region) {
     return;
   }
 
-  // Title is available → render pills (as <a> links when a search URL is known)
-  const titleQ = t ? t.title : '';
+  // Title is available → render pills (as <a> links to the platform page)
+  const titleQ  = t ? t.title : '';
+  const urlMap  = (t && t.platform_urls) || {};
   let html = platforms.map(p => {
-    const urlFn = PLATFORM_WATCH_URLS[p];
-    if (urlFn) {
-      const href = escAttr(urlFn(titleQ));
+    // Prefer the scraped direct URL, fall back to a search on the platform
+    const directUrl = urlMap[p];
+    const urlFn     = PLATFORM_WATCH_URLS[p];
+    const href      = directUrl ? escAttr(directUrl) : (urlFn ? escAttr(urlFn(titleQ)) : null);
+    if (href) {
       return `<a class="modal-platform-pill ${p}" href="${href}" target="_blank" rel="noopener noreferrer">${platLogo(p)}<span>${formatPlatform(p)}</span></a>`;
     }
     return `<span class="modal-platform-pill ${p}">${platLogo(p)}<span>${formatPlatform(p)}</span></span>`;

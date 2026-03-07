@@ -148,6 +148,14 @@ def get_titles():
                 FROM titles t2
                 WHERE t2.title=t.title AND t2.content_type=t.content_type
                ) AS platform_regions_raw,
+               (SELECT GROUP_CONCAT(pu.p || '|' || pu.u)
+                FROM (
+                    SELECT platform AS p, MAX(source_url) AS u
+                    FROM titles
+                    WHERE title=t.title AND content_type=t.content_type
+                    GROUP BY platform
+                ) pu WHERE pu.u IS NOT NULL
+               ) AS platform_urls_raw,
                COALESCE(l.is_fav,  0)            AS is_fav,
                COALESCE(l.status, 'not-started') AS status,
                l.notes"""

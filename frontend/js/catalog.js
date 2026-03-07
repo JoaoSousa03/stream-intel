@@ -333,6 +333,23 @@ async function loadTitles() {
       } else {
         t.platform_regions = null;
       }
+      // Parse platform→watch URL map from "netflix|https://...,disney_plus|https://..." string
+      const _JW_API = 'apis.justwatch.com';
+      if (t.platform_urls_raw) {
+        const urlMap = {};
+        t.platform_urls_raw.split(',').forEach(pu => {
+          const idx = pu.indexOf('|');
+          if (idx === -1) return;
+          const p   = pu.slice(0, idx).trim();
+          const url = pu.slice(idx + 1).trim();
+          if (url && !url.includes(_JW_API)) urlMap[p] = url;
+        });
+        t.platform_urls = Object.keys(urlMap).length ? urlMap : null;
+      } else if (t.source_url && !t.source_url.includes(_JW_API)) {
+        t.platform_urls = { [t.platform]: t.source_url };
+      } else {
+        t.platform_urls = null;
+      }
       cardDataStore[titleKey(t)] = t;
       return t;
     });

@@ -178,6 +178,7 @@ query GetProviderTitles(
         }
         offers(country: $country, platform: WEB) {
           monetizationType
+          standardWebURL
           package { id packageId clearName technicalName }
         }
         streamingCharts(country: $country) {
@@ -330,6 +331,12 @@ def parse_titles(
             if not offers:
                 continue
 
+            # Pick the watch URL from the first matching offer that has one
+            watch_url = next(
+                (o["standardWebURL"] for o in offers if o.get("standardWebURL")),
+                None,
+            )
+
             scoring = content.get("scoring") or {}
             charts = node.get("streamingCharts", {}).get("edges", [])
             chart_rank = charts[0]["streamingChartInfo"]["rank"] if charts else 0
@@ -362,7 +369,7 @@ def parse_titles(
                         content.get("ageCertification", "") or ""
                     ),
                     "is_trending": is_trending,
-                    "source_url": GRAPHQL_URL,
+                    "source_url": watch_url or GRAPHQL_URL,
                     "imdb_score": float(scoring.get("imdbScore") or 0),
                     "imdb_votes": int(scoring.get("imdbVotes") or 0),
                     "tomatometer": int(scoring.get("tomatoMeter") or 0),
