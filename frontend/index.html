@@ -1,0 +1,1122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StreamIntel</title>
+<!-- PWA -->
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" type="image/png" href="/icons/icon-192.png">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="StreamIntel">
+<meta name="theme-color" content="#0f1923">
+<!-- /PWA -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;1,300&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<!-- ── Auth screen ── -->
+<div class="auth-screen hidden" id="authScreen">
+  <div class="auth-box">
+    <div class="auth-logo-mark">StreamIntel</div>
+    <div class="auth-title">Stream Monitor</div>
+    <div class="auth-sub" id="authSub">Sign in to access your personalised streaming dashboard.</div>
+    <div class="auth-field">
+      <label>Username</label>
+      <input class="auth-input" id="authUsername" type="text" placeholder="Enter username" autocomplete="username">
+    </div>
+    <div class="auth-field">
+      <label>Password</label>
+      <input class="auth-input" id="authPassword" type="password" placeholder="Enter password" autocomplete="current-password">
+    </div>
+    <button class="auth-btn" id="authBtn" onclick="doLogin()">Sign In</button>
+    <div class="auth-divider">or</div>
+    <button class="auth-btn google-btn" id="googleBtn" onclick="doGoogleLogin()">
+      <svg class="google-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+      </svg>
+      Sign in with Google
+    </button>
+    <div class="auth-error" id="authError"></div>
+    <div class="auth-hint" id="authHint">Your watch history and favourites are saved to your account.</div>
+  </div>
+</div>
+
+<!-- ── Google account setup overlay ── -->
+<div class="auth-screen hidden" id="setupScreen">
+  <div class="auth-box">
+    <div class="auth-logo-mark">StreamIntel</div>
+    <div class="auth-title">Set up your profile</div>
+    <div class="auth-sub">One last step — confirm your username to continue. You can change it any time in your profile.</div>
+    <div class="setup-avatar-row">
+      <div class="setup-avatar" id="setupAvatarEl">
+        <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" width="36" height="36">
+          <circle cx="32" cy="32" r="13" stroke="rgba(255,255,255,0.5)" stroke-width="2.5"/>
+          <path d="M20 22h-3a3 3 0 00-3 3v18a3 3 0 003 3h30a3 3 0 003-3V25a3 3 0 00-3-3h-3l-3-4H23l-3 4z" stroke="rgba(255,255,255,0.5)" stroke-width="2.5" stroke-linejoin="round"/>
+        </svg>
+        <img id="setupAvatarImg" style="display:none" alt="">
+      </div>
+      <label class="setup-pic-btn">
+        <svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14"><path d="M4 3a2 2 0 00-2 2v.5A.5.5 0 002.5 6H4v1H2.5A.5.5 0 002 7.5v5A.5.5 0 002.5 13H4v1H2.5a.5.5 0 00-.5.5V15a2 2 0 002 2h12a2 2 0 002-2v-.5a.5.5 0 00-.5-.5H16v-1h1.5a.5.5 0 00.5-.5v-5a.5.5 0 00-.5-.5H16V6h1.5A.5.5 0 0018 5.5V5a2 2 0 00-2-2H4zm8 5a3 3 0 110 6 3 3 0 010-6z"/></svg>
+        Add photo <span style="color:var(--muted);font-size:11px">(optional)</span>
+        <input type="file" id="setupPicInput" accept="image/*" style="display:none" onchange="onSetupPicChange(event)">
+      </label>
+    </div>
+    <div class="auth-field">
+      <label>Username <span style="color:var(--accent)">*</span></label>
+      <input class="auth-input" id="setupUsernameInput" type="text" maxlength="30"
+             placeholder="Your username" autocomplete="username" spellcheck="false">
+    </div>
+    <button class="auth-btn" id="setupSubmitBtn" onclick="submitSetup()">Get started →</button>
+    <div class="auth-error" id="setupError"></div>
+  </div>
+</div>
+
+<!-- ── Main app ── -->
+<div class="layout" id="appLayout" style="display:none">
+
+  <aside class="sidebar" id="scraperSidebar" style="display:none">
+    <div class="logo">
+      <div class="logo-mark">StreamIntel</div>
+      <div class="logo-title">Stream<br>Monitor</div>
+    </div>
+
+    <!-- User stats strip -->
+    <div class="user-stats">
+      <div class="user-stat" onclick="setTypeFilter('favourites', document.querySelector('[data-type=favourites]'))">
+        <div class="us-val fav-val" id="statFav">0</div>
+        <div class="us-lbl">Favs</div>
+      </div>
+      <div class="user-stat" onclick="setTypeFilter('watching', document.querySelector('[data-type=watching]'))">
+        <div class="us-val watch-val" id="statWatch">0</div>
+        <div class="us-lbl">Watching</div>
+      </div>
+      <div class="user-stat" onclick="setTypeFilter('finished', document.querySelector('[data-type=finished]'))">
+        <div class="us-val done-val" id="statDone">0</div>
+        <div class="us-lbl">Finished</div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <label>Mode</label>
+      <select class="select" id="modeSelect">
+        <option value="trending">Trending</option>
+        <option value="catalog">Full Catalog</option>
+        <option value="all">Both</option>
+      </select>
+      <label style="margin-top:14px">Regions</label>
+      <input class="regions-input" id="regionsInput" placeholder="US, GB, PT — or leave blank for all" value="US">
+      <label style="margin-top:14px">Min. IMDb Votes</label>
+      <select class="select" id="minVotesSelect">
+        <option value="0">No filter</option>
+        <option value="1000" selected>1K+</option>
+        <option value="10000">10K+</option>
+        <option value="50000">50K+</option>
+        <option value="100000">100K+</option>
+        <option value="250000">250K+</option>
+      </select>
+      <label style="margin-top:14px;display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input type="checkbox" id="multiSortCheck" style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer">
+        <span>Max region coverage</span>
+      </label>
+      <div style="font-size:11px;color:var(--muted);margin-top:-4px;line-height:1.4">
+        Fetches POPULAR &amp; ALPHABETICAL sort orders to capture regional long-tail titles. ~2&times; slower.
+      </div>
+      <label style="margin-top:14px">Proxy URL <span style="color:var(--muted);font-weight:400;font-size:11px">(optional, for bypassing blocks)</span></label>
+      <input class="regions-input" id="proxyInput" type="password" placeholder="http://user:pass@host:port"
+             title="Residential proxy URL — required if JustWatch returns 403 errors from this IP."
+             style="font-family:monospace;font-size:12px">
+      <button class="run-btn" id="runBtn" onclick="runScraper()">Run Scraper</button>
+      <button class="run-btn" id="enrichBtn" onclick="runEnrich()" title="Run TMDB enrichment on existing titles without re-scraping" style="background:var(--watching)">Enrich Only</button>
+      <button class="load-btn" onclick="loadTitles()">↻ Refresh Titles</button>
+      <button class="import-btn" onclick="importJson()" title="One-time import of existing JSON files into the database">⬆ Import old JSON files</button>
+    </div>
+
+    <div class="log-wrap">
+      <div class="log-label">Live Log</div>
+      <div class="log" id="log"><div class="log-line" style="color:var(--muted)">Waiting to run…</div></div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <!-- ── Unified top header + nav ── -->
+    <div class="top-header">
+      <!-- Row 1: logo + user -->
+      <div class="header-row1">
+      <button class="nav-drawer-toggle" id="navDrawerToggle" onclick="toggleNavDrawer()" title="Navigation menu">&#9776;</button>
+      <button class="sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()" title="Toggle scraper panel" style="display:none">☰</button>
+      <button class="logo-link" onclick="goHome()" title="Back to home">
+        <div class="header-logo-icon">
+          <img src="/icons/icon.png" alt="StreamIntel" style="width:100%;height:100%;object-fit:contain"/>
+        </div>
+        <div class="header-logo-text">
+          <span class="header-logo-sub">Stream</span>
+          <span class="header-logo-title">Intel</span>
+        </div>
+      </button>
+
+      <div class="mobile-page-title" id="mobilePageTitle">All Titles</div>
+
+      <div class="header-right">
+        <div class="header-stats">
+          <span class="stats-count" id="statsCount">0</span>
+          <span class="stats-label" id="statsLabel">titles</span>
+        </div>
+        <!-- ── Bell / Notifications ── -->
+        <div class="notif-wrap" id="notifWrap">
+          <button class="notif-btn" id="notifBtn" onclick="toggleNotifPanel()" aria-label="Notifications">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+              <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+            </svg>
+            <span class="notif-badge hidden" id="notifBadge">0</span>
+          </button>
+        </div>
+
+        <div class="user-menu-wrap" id="userMenuWrap">
+          <button class="user-avatar-btn" id="userAvatarBtn" onclick="toggleUserMenu()" aria-label="Account menu">
+            <img id="headerAvatarImg" style="display:none" alt="">
+            <span id="headerAvatarInitial">?</span>
+          </button>
+          <div class="user-menu-dropdown" id="userMenuDropdown" role="menu">
+            <div class="umd-user-header">
+              <span id="usernameDisplay" class="umd-username"></span>
+            </div>
+            <button class="umd-item" onclick="closeUserMenu();openProfile()" role="menuitem">
+              <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              Profile
+            </button>
+            <button class="umd-item" onclick="closeUserMenu();openFriends()" role="menuitem">
+              <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              Friends
+            </button>
+            <button class="umd-item umd-signout" onclick="doLogout()" role="menuitem">
+              <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+              Sign out
+            </button>
+          </div>
+        </div>
+      </div>
+      </div><!-- end header-row1 -->
+      <!-- Row 2: nav tabs -->
+      <nav class="header-nav">
+        <button class="nav-tab active" data-view="all"        onclick="setView('all',this)">All</button>
+        <button class="nav-tab"        data-view="movie"      onclick="setView('movie',this)">🎬 Movies</button>
+        <button class="nav-tab"        data-view="tv"         onclick="setView('tv',this)">📺 TV</button>
+        <button class="nav-tab"        data-view="trending"   onclick="setView('trending',this)">🔥 Trending</button>
+        <button class="nav-tab"        data-view="discover"   onclick="setView('discover',this)">🧭 Discover</button>
+        <button class="nav-tab fav-tab" data-view="favourites" onclick="setView('favourites',this)">❤️ Favourites</button>
+        <button class="nav-tab"        data-view="watchlist"  onclick="setView('watchlist',this)">🔖 Watchlist</button>
+        <button class="nav-tab"        data-view="watching"   onclick="setView('watching',this)">▶️ Watching</button>
+        <button class="nav-tab"        data-view="finished"   onclick="setView('finished',this)">✅ Finished</button>
+        <button class="nav-tab"        data-view="upcoming"  onclick="setView('upcoming',this)">📅 Upcoming</button>
+        <button class="nav-tab"        data-view="actors"    onclick="setView('actors',this)">🎭 Actors</button>
+        <button class="nav-tab"        data-view="stats"      id="statsNavTab" style="display:none" onclick="setView('stats',this)">📊 Stats</button>
+      </nav>
+
+      <!-- Library sub-tabs (visible when any library view is active) -->
+      <div class="library-sub-bar" id="librarySubBar" style="display:none">
+      <button class="library-sub-tab active" data-lsub="library"   onclick="setView('library',this)">📚 All</button>
+      <button class="library-sub-tab" data-lsub="favourites" onclick="setView('favourites',this)">❤️ Favourites</button>
+      <button class="library-sub-tab" data-lsub="watchlist"  onclick="setView('watchlist',this)">🔖 Watchlist</button>
+      <button class="library-sub-tab" data-lsub="watching"   onclick="setView('watching',this)">▶️ Watching</button>
+      <button class="library-sub-tab" data-lsub="finished"   onclick="setView('finished',this)">✅ Finished</button>
+    </div>
+
+      <!-- ── Sub-toolbar (filters, shown for content views) ── -->
+      <div class="toolbar" id="subToolbar">
+      <div class="search-wrap">
+        <input class="search-box" id="searchBox" placeholder="Search titles…" oninput="applyFilters()">
+        <button class="search-clear-btn" id="searchClearBtn" onclick="clearSearch()" title="Clear search" style="display:none">×</button>
+      </div>
+      <button class="clear-filters-btn" id="clearFiltersBtn" onclick="clearAllFilters()" style="display:none">Clear filters ✕</button>
+      <button class="filter-toggle-btn" id="filterToggleBtn" onclick="toggleFilters()" title="Show/hide filters">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M1 3h12M3 7h8M5 11h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+        <span class="filter-toggle-label">Filters</span>
+      </button>
+      <div class="toolbar-filters" id="toolbarFilters">
+        <div class="filter-group" id="platformFilter"></div>
+        <div class="genre-dropdown" id="regionDropdown" style="display:none">
+          <button class="sort-select genre-dropdown-btn" id="regionDropdownBtn" onclick="toggleRegionDropdown(event)">All Countries ▾</button>
+          <div class="genre-dropdown-menu" id="regionDropdownMenu"></div>
+        </div>
+        <div class="trend-type-toggle" id="trendingTypeFilter" style="display:none">
+          <button class="trend-type-btn active" data-type="all"    onclick="setTrendingTypeFilter('all')">All</button>
+          <button class="trend-type-btn"        data-type="movie"  onclick="setTrendingTypeFilter('movie')">Movies</button>
+          <button class="trend-type-btn"        data-type="tv"     onclick="setTrendingTypeFilter('tv')">TV</button>
+        </div>
+        <div class="genre-dropdown" id="genreDropdown">
+          <button class="sort-select genre-dropdown-btn" id="genreDropdownBtn" onclick="toggleGenreDropdown(event)">All Genres ▾</button>
+          <div class="genre-dropdown-menu" id="genreDropdownMenu"></div>
+        </div>
+        <div class="genre-dropdown" id="genreExcludeDropdown">
+          <button class="sort-select genre-dropdown-btn" id="genreExcludeBtn" onclick="toggleExcludeDropdown(event)">Exclude Genres ▾</button>
+          <div class="genre-dropdown-menu" id="genreExcludeMenu"></div>
+        </div>
+        <div class="genre-dropdown" id="votesDropdown">
+          <button class="sort-select genre-dropdown-btn" id="votesDropdownBtn" onclick="toggleVotesDropdown(event)">Any votes ▾</button>
+          <div class="genre-dropdown-menu" id="votesDropdownMenu">
+            <div class="genre-option checked" onclick="setVotesFilter(0,'Any votes',this)"><span class="genre-checkbox"></span>Any votes</div>
+            <div class="genre-option" onclick="setVotesFilter(1000,'1K+ votes',this)"><span class="genre-checkbox"></span>1K+ votes</div>
+            <div class="genre-option" onclick="setVotesFilter(10000,'10K+ votes',this)"><span class="genre-checkbox"></span>10K+ votes</div>
+            <div class="genre-option" onclick="setVotesFilter(50000,'50K+ votes',this)"><span class="genre-checkbox"></span>50K+ votes</div>
+            <div class="genre-option" onclick="setVotesFilter(100000,'100K+ votes',this)"><span class="genre-checkbox"></span>100K+ votes</div>
+            <div class="genre-option" onclick="setVotesFilter(500000,'500K+ votes',this)"><span class="genre-checkbox"></span>500K+ votes</div>
+          </div>
+        </div>
+        <div class="genre-dropdown" id="sortDropdown">
+          <button class="sort-select genre-dropdown-btn" id="sortDropdownBtn" onclick="toggleSortDropdown(event)">By Rank ▾</button>
+          <div class="genre-dropdown-menu" id="sortDropdownMenu">
+            <div class="genre-option checked" onclick="setSortFilter('rank','By Rank',this)"><span class="genre-checkbox"></span>By Rank</div>
+            <div class="genre-option" onclick="setSortFilter('imdb','IMDb Score',this)"><span class="genre-checkbox"></span>IMDb Score</div>
+            <div class="genre-option" onclick="setSortFilter('rt','Rotten Tomatoes',this)"><span class="genre-checkbox"></span>Rotten Tomatoes</div>
+            <div class="genre-option" onclick="setSortFilter('year','Year',this)"><span class="genre-checkbox"></span>Year</div>
+            <div class="genre-option" onclick="setSortFilter('title','Title A–Z',this)"><span class="genre-checkbox"></span>Title A–Z</div>
+          </div>
+        </div>
+      </div>
+      </div>
+    </div>
+
+    <!-- People suggestion strip — shown when searching by person name -->
+    <div id="catalogPeopleStrip" style="display:none"></div>
+
+    <div class="grid-wrap" id="gridWrap">
+      <div class="empty">
+        <div class="empty-icon" style="font-size:0"><span class="spinner" style="width:36px;height:36px;border-width:3px;margin:0"></span></div>
+        <div class="empty-title" style="margin-top:20px">Loading…</div>
+      </div>
+    </div>
+    <div class="pagination" id="pagination" style="display:none"></div>
+
+    <!-- ── Discover panel ── -->
+    <div id="discoverPanel" style="display:none">
+      <div class="discover-wrap" id="discoverWrap"></div>
+    </div>
+
+    <!-- ── Stats panel ── -->
+    <div id="statsPanel" style="display:none">
+      <div class="stats-panel-wrap" id="statsPanelWrap"></div>
+    </div>
+
+    <!-- ── Upcoming panel ── -->
+    <div id="upcomingPanel" style="display:none">
+      <div class="upcoming-wrap" id="upcomingWrap"></div>
+    </div>
+
+    <!-- ── Actors panel ── -->
+    <div id="actorsPanel" style="display:none">
+      <div class="actors-panel-wrap">
+        <div class="actors-panel-toolbar">
+          <div class="actors-search-wrap">
+            <span class="actors-search-icon">⌕</span>
+            <input class="actors-search-input" id="actorSearchInput" type="text"
+                   placeholder="Search actors, directors…"
+                   oninput="actorPanelSearch(this.value)"
+                   onkeydown="if(event.key==='Escape'){this.value='';actorPanelSearch('')}">
+            <button class="actors-search-clear" id="actorSearchClear"
+                    onclick="document.getElementById('actorSearchInput').value='';actorPanelSearch('')"
+                    style="display:none">×</button>
+          </div>
+          <div class="actors-cat-tabs" id="actorCatTabs">
+            <button class="actors-cat-btn active" data-cat="trending" onclick="setActorCategory('trending',this)">🔥 Trending</button>
+            <button class="actors-cat-btn"        data-cat="popular"  onclick="setActorCategory('popular',this)">⭐ Popular</button>
+          </div>
+        </div>
+        <div class="actors-grid" id="actorsGrid"></div>
+        <div class="actors-load-more" id="actorsLoadMore" style="display:none">
+          <button class="actors-load-more-btn" onclick="actorPanelLoadMore()">Load more</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ── Mobile bottom navigation bar ── -->
+  <nav class="bottom-nav" id="bottomNav" aria-label="Main navigation">
+    <button class="bottom-nav-btn active" data-bnav="home" onclick="setView('all',this)" aria-label="Home">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="22" height="22">
+        <path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V9.5z"/>
+        <path d="M9 21V12h6v9"/>
+      </svg>
+      <span>Home</span>
+    </button>
+    <button class="bottom-nav-btn" data-bnav="trending" onclick="setView('trending',this)" aria-label="Trending">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="22" height="22">
+        <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
+        <polyline points="17 6 23 6 23 12"/>
+      </svg>
+      <span>Trending</span>
+    </button>
+    <button class="bottom-nav-btn" data-bnav="library" onclick="gotoLibrary()" aria-label="Library">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="22" height="22">
+        <path d="M19 21l-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+      </svg>
+      <span>Library</span>
+    </button>
+    <button class="bottom-nav-btn" data-bnav="friends" onclick="openFriends()" aria-label="Friends">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="22" height="22">
+        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+        <circle cx="9" cy="7" r="4"/>
+        <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+        <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+      </svg>
+      <span>Friends</span>
+    </button>
+    <button class="bottom-nav-btn" data-bnav="more" onclick="toggleNavDrawer()" aria-label="More">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="22" height="22">
+        <circle cx="5" cy="12" r="1.5" fill="currentColor" stroke="none"/>
+        <circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/>
+        <circle cx="19" cy="12" r="1.5" fill="currentColor" stroke="none"/>
+      </svg>
+      <span>More</span>
+    </button>
+  </nav>
+</div>
+
+<!-- ── Title detail page ── -->
+<div class="detail-page" id="overlay">
+  <!-- Back navigation bar -->
+  <div class="detail-back-bar">
+    <button class="detail-back-btn" onclick="closeModalDirect()">← Back</button>
+    <span class="detail-back-crumb" id="detailCrumb"></span>
+    <div class="header-search">
+      <span class="header-search-icon">⌕</span>
+      <input class="header-search-input hs-input" type="text"
+             placeholder="Search…" autocomplete="off"
+             oninput="hsDebounced(this)"
+             onfocus="hsFocus(this)"
+             onkeydown="hsKeydown(event,this)">
+      <div class="search-dropdown hs-dropdown">
+        <div class="hs-results"></div>
+        <button class="search-more-btn hs-more-btn" onclick="hsShowMore(this)" style="display:none">Show more results</button>
+      </div>
+    </div>
+    <button class="logo-link-small" onclick="goHome()" title="Back to home">
+      <div class="header-logo-icon-small">
+        <img src="/icons/icon.png" alt="StreamIntel" style="width:100%;height:100%;object-fit:contain"/>
+      </div>
+      <span class="header-logo-text-small">StreamIntel</span>
+    </button>
+  </div>
+
+  <!-- Scrollable content -->
+  <div class="detail-scroll" id="detailScroll">
+
+    <!-- Hero banner + poster -->
+    <div class="modal-hero" id="mHero">
+      <div class="modal-hero-placeholder" id="mHeroPlaceholder">🎬</div>
+      <img id="mHeroImg" style="display:none" alt="">
+      <div class="modal-hero-overlay"></div>
+      <div class="modal-hero-poster">
+        <div class="modal-hero-poster-ph" id="mPosterPh">🎬</div>
+        <img id="mPosterImg" style="display:none" alt="">
+      </div>
+    </div>
+
+    <!-- Title / badges -->
+    <div class="modal-header">
+      <div class="modal-platform" id="mPlatform">
+        <!-- Region selector -->
+        <div class="modal-region-selector" id="mRegionSelector" style="display:none">
+          <button class="modal-region-btn" id="mRegionBtn" onclick="setModalRegion(null, event)">🌍 All regions ▾</button>
+          <div class="modal-region-menu" id="mRegionMenu"></div>
+        </div>
+        <!-- Platform pills filtered by selected region -->
+        <div class="modal-platform-pills" id="mPlatformPills"></div>
+      </div>
+      <div class="modal-title" id="mTitle"></div>
+      <div class="modal-tagline" id="mTagline"></div>
+      <div class="modal-tags" id="mTags"></div>
+      <div class="show-meta" id="mShowMeta"></div>
+    </div>
+
+    <!-- Fav + status buttons -->
+    <div class="modal-actions">
+      <button class="modal-fav-btn" id="modalFavBtn" onclick="toggleFavFromModal()">❤️ Add to Favourites</button>
+      <span class="modal-status-label">Status</span>
+      <button class="status-btn-lg" id="sBtn3" onclick="setStatusFromModal('watchlist')">🔖 Watchlist</button>
+      <button class="status-btn-lg" id="sBtn1" onclick="setStatusFromModal('watching')">▶️ Watching</button>
+      <button class="status-btn-lg" id="sBtn2" onclick="setStatusFromModal('finished')">✅ Finished</button>
+    </div>
+
+    <!-- Send to friend button -->
+    <div class="modal-share-row">
+      <button class="modal-share-msg-btn" onclick="openShareMsgDialog()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        Send to a Friend
+      </button>
+    </div>
+
+    <!-- User star rating -->
+    <div class="modal-user-rating" id="mRatingRow">
+      <span class="modal-rating-label">Your Rating</span>
+      <div class="star-rating" id="mStarRating">
+        <button class="star-btn" data-v="1" onclick="setRatingFromModal(1)">★</button>
+        <button class="star-btn" data-v="2" onclick="setRatingFromModal(2)">★</button>
+        <button class="star-btn" data-v="3" onclick="setRatingFromModal(3)">★</button>
+        <button class="star-btn" data-v="4" onclick="setRatingFromModal(4)">★</button>
+        <button class="star-btn" data-v="5" onclick="setRatingFromModal(5)">★</button>
+      </div>
+      <button class="modal-rating-clear" id="mRatingClear" onclick="setRatingFromModal(0)" style="display:none">✕ Clear</button>
+    </div>
+
+    <!-- Ratings row -->
+    <div class="modal-scores" id="mScores"></div>
+
+    <!-- Tab bar -->
+    <div class="modal-tabs">
+      <button class="modal-tab active" data-panel="overview"  onclick="switchModalTab('overview',this)">Overview</button>
+      <button class="modal-tab"        data-panel="cast"      onclick="switchModalTab('cast',this)">Cast</button>
+      <button class="modal-tab"        data-panel="seasons"   id="seasonsTab" style="display:none" onclick="switchModalTab('seasons',this)">Seasons & Episodes</button>
+    </div>
+
+    <!-- Tab panels -->
+    <div class="modal-body">
+
+      <!-- Overview panel -->
+      <div class="modal-panel active" id="panel-overview">
+        <div class="overview-layout">
+          <!-- Left: synopsis + detail table + genres -->
+          <div class="overview-main">
+            <div class="section-label">Synopsis</div>
+            <div class="synopsis-text" id="mSynopsis"></div>
+            <div class="modal-genres" id="mGenres"></div>
+            <div id="mDetailTable"></div>
+          </div>
+          <!-- Right: notes -->
+          <div class="overview-side">
+            <label class="notes-label">Personal Notes</label>
+            <textarea class="notes-input" id="notesInput" placeholder="Your thoughts, reminders, episode notes…"></textarea>
+            <div style="display:flex;align-items:center;margin-top:6px;">
+              <button class="notes-save-btn" onclick="saveNotes()">Save notes</button>
+              <span class="notes-saved-msg" id="notesSavedMsg">✓ Saved</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Cast panel -->
+      <div class="modal-panel" id="panel-cast">
+        <div id="castContent" class="panel-loading">Loading cast…</div>
+      </div>
+
+      <!-- Seasons & Episodes panel -->
+      <div class="modal-panel" id="panel-seasons">
+        <div class="seasons-toolbar" id="seasonsToolbar" style="display:none">
+          <button class="seasons-toggle-all-btn" id="seasonsToggleAllBtn" onclick="toggleAllWatched()">✓ Mark all watched</button>
+        </div>
+        <div id="seasonsContent" class="panel-loading">Loading seasons…</div> 
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ── Actor detail page ── -->
+<div class="actor-overlay" id="actorOverlay">
+  <div class="actor-back-bar">
+    <button class="actor-back-btn" onclick="closeActorModalDirect()">← Back</button>
+    <span class="actor-back-crumb" id="actorCrumb"></span>
+    <div class="header-search">
+      <span class="header-search-icon">⌕</span>
+      <input class="header-search-input hs-input" type="text"
+             placeholder="Search…" autocomplete="off"
+             oninput="hsDebounced(this)"
+             onfocus="hsFocus(this)"
+             onkeydown="hsKeydown(event,this)">
+      <div class="search-dropdown hs-dropdown">
+        <div class="hs-results"></div>
+        <button class="search-more-btn hs-more-btn" onclick="hsShowMore(this)" style="display:none">Show more results</button>
+      </div>
+    </div>
+    <button class="logo-link-small" onclick="goHome()" title="Back to home">
+      <div class="header-logo-icon-small">
+        <img src="/icons/icon.png" alt="StreamIntel" style="width:100%;height:100%;object-fit:contain"/>
+      </div>
+      <span class="header-logo-text-small">StreamIntel</span>
+    </button>
+  </div>
+
+  <!-- Branded loader shown while actor data is fetching -->
+  <div class="actor-loader" id="actorLoader">
+    <div class="actor-loader-inner">
+      <div class="actor-loader-icon">
+        <img src="/icons/icon.png" alt="StreamIntel" class="actor-loader-img" style="width:100%;height:100%;object-fit:contain"/>
+      </div>
+      <div class="actor-loader-wordmark">
+        <span class="actor-loader-sub">Stream</span>
+        <span class="actor-loader-title">Intel</span>
+      </div>
+      <div class="actor-loader-label">Loading profile…</div>
+    </div>
+  </div>
+
+  <div class="actor-scroll">
+    <div class="actor-content">
+      <div class="actor-photo-col" id="actorPhotoCol">
+        <div class="actor-photo-ph" id="actorPhotoPh">🎭</div>
+      </div>
+      <div class="actor-details">
+        <div class="actor-name"      id="actorName"></div>
+        <div class="actor-character" id="actorCharacter"></div>
+        <div id="actorMetaTable"></div>
+        <div class="actor-bio-label">Biography</div>
+        <div class="actor-bio"       id="actorBio"></div>
+        <div id="actorFilmography"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Profile overlay ── -->
+<div class="profile-overlay" id="profileOverlay">
+  <!-- Back bar -->
+  <div class="detail-back-bar">
+    <button class="detail-back-btn" onclick="closeProfile()">← Back</button>
+    <span class="detail-back-crumb">My Profile</span>
+    <button class="logo-link-small" onclick="closeProfile()" title="Back">
+      <div class="header-logo-icon-small">
+        <img src="/icons/icon.png" alt="StreamIntel" style="width:100%;height:100%;object-fit:contain"/>
+      </div>
+      <span class="header-logo-text-small">StreamIntel</span>
+    </button>
+  </div>
+
+  <div class="profile-scroll">
+    <!-- Hero banner -->
+    <div class="profile-hero">
+      <!-- Avatar -->
+      <div class="profile-avatar-wrap">
+        <div class="profile-avatar" id="profileAvatar">
+          <svg class="profile-avatar-placeholder" viewBox="0 0 80 80" fill="none">
+            <circle cx="40" cy="40" r="40" fill="rgba(255,255,255,0.06)"/>
+            <circle cx="40" cy="32" r="14" fill="rgba(255,255,255,0.18)"/>
+            <ellipse cx="40" cy="68" rx="22" ry="16" fill="rgba(255,255,255,0.12)"/>
+          </svg>
+          <img id="profileAvatarImg" style="display:none" alt="Profile picture">
+        </div>
+        <label class="profile-avatar-edit" title="Change photo">
+          <svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>
+          <input type="file" id="profilePicInput" accept="image/*" style="display:none" onchange="onProfilePicChange(event)">
+        </label>
+      </div>
+      <!-- Name + meta -->
+      <div class="profile-identity">
+        <div class="profile-displayname" id="profileDisplayName" contenteditable="true" spellcheck="false" onblur="saveDisplayName(this)"></div>
+        <div class="profile-username-sub" id="profileUsernameSub"></div>
+        <div class="profile-meta-row">
+          <span class="profile-meta-chip" id="profileAuthType"></span>
+          <span class="profile-meta-chip" id="profileMemberSince"></span>
+        </div>
+        <div class="profile-country-row">
+          <span class="profile-country-label">🌍 Home Country</span>
+          <select class="profile-country-select" id="profileCountrySelect" onchange="saveHomeCountry(this.value)">
+            <option value="">— Not set —</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Watch time highlight -->
+    <div class="profile-section">
+      <div class="profile-section-header">
+        <div class="profile-section-title">Total Watch Time</div>
+      </div>
+      <div class="profile-time-card" onclick="openWatchHistory()" title="View watch history" style="cursor:pointer">
+        <div class="profile-time-main" id="profileTotalTime">—</div>
+        <div class="profile-time-sub" id="profileTimeSub"></div>
+      </div>
+    </div>
+
+    <!-- Movies -->
+    <div class="profile-section">
+      <div class="profile-section-title">🎬 Movies</div>
+      <div class="profile-split">
+        <div class="profile-stats-grid" id="profileMovieGrid"></div>
+        <div class="profile-time-pill" id="profileMovieTime"></div>
+      </div>
+    </div>
+
+    <!-- TV -->
+    <div class="profile-section">
+      <div class="profile-section-title">📺 TV Shows</div>
+      <div class="profile-split">
+        <div class="profile-stats-grid" id="profileTVGrid"></div>
+        <div class="profile-time-pill" id="profileTVTime"></div>
+      </div>
+    </div>
+
+    <!-- Genres -->
+    <div class="profile-section" id="profileGenresSection" style="display:none">
+      <div class="profile-section-title">Favourite Genres</div>
+      <div class="profile-genres" id="profileGenres"></div>
+    </div>
+
+    <!-- Library overview -->
+    <div class="profile-section">
+      <div class="profile-section-title">Library</div>
+      <div class="profile-stats-grid" id="profileLibraryGrid"></div>
+    </div>
+
+    <!-- Top Actors -->
+    <div class="profile-section" id="profileTopActorsSection" style="display:none">
+      <div class="profile-section-header">
+        <div class="profile-section-title">🎭 Top Actors</div>
+        <button class="profile-view-all-btn" id="profileActorsViewAll" style="display:none"
+                onclick="openPeopleAll('Top Actors', 'actors')">View all →</button>
+      </div>
+      <div class="profile-people-list" id="profileTopActorsList"></div>
+    </div>
+
+    <!-- Top Directors -->
+    <div class="profile-section" id="profileTopDirectorsSection" style="display:none">
+      <div class="profile-section-header">
+        <div class="profile-section-title">🎬 Top Directors</div>
+        <button class="profile-view-all-btn" id="profileDirectorsViewAll" style="display:none"
+                onclick="openPeopleAll('Top Directors', 'directors')">View all →</button>
+      </div>
+      <div class="profile-people-list" id="profileTopDirectorsList"></div>
+    </div>
+
+    <!-- Ratings list -->
+    <div class="profile-section" id="profileRatingsSection" style="display:none">
+      <div class="profile-section-header">
+        <div class="profile-section-title">Your Ratings</div>
+        <div class="profile-sort-row">
+          <button class="profile-sort-btn active" onclick="loadProfileRatings('rating',this)">★ Highest</button>
+          <button class="profile-sort-btn" onclick="loadProfileRatings('title',this)">A – Z</button>
+          <button class="profile-sort-btn" onclick="loadProfileRatings('year',this)">Year</button>
+        </div>
+      </div>
+      <div class="profile-ratings-list" id="profileRatingsList"></div>
+    </div>
+
+    <!-- Account settings -->
+    <div class="profile-section">
+      <div class="profile-section-title">👤 Account</div>
+      <div class="profile-username-row">
+        <label class="profile-username-label">Username</label>
+        <!-- Display mode: show current username + pencil -->
+        <div class="profile-username-field profile-username-display" id="profileUsernameDisplay">
+          <span id="profileUsernameText"></span>
+          <button class="profile-username-pencil" onclick="startEditUsername()" title="Change username">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          </button>
+        </div>
+        <!-- Edit mode: input + save + cancel -->
+        <div class="profile-username-field" id="profileUsernameEdit" style="display:none">
+          <input type="text" id="profileUsernameInput" class="profile-username-input"
+                 placeholder="New username" maxlength="30" autocomplete="off"
+                 spellcheck="false"
+                 onkeydown="if(event.key==='Enter')saveUsername();if(event.key==='Escape')cancelEditUsername()">
+          <button class="profile-username-save" onclick="saveUsername()">Save</button>
+          <button class="profile-username-cancel" onclick="cancelEditUsername()">✕</button>
+        </div>
+        <div class="profile-username-hint" id="profileUsernameHint"></div>
+      </div>
+    </div>
+
+    <!-- Privacy settings -->
+    <div class="profile-section">
+      <div class="profile-section-title">⚙️ Privacy</div>
+      <div class="profile-privacy-row">
+        <div class="profile-privacy-info">
+          <div class="profile-privacy-label">Share library with friends</div>
+          <div class="profile-privacy-sub">Friends can browse your favourites, watchlist, and watch history</div>
+        </div>
+        <label class="privacy-toggle">
+          <input type="checkbox" id="libraryPublicToggle" onchange="saveLibraryPublic(this.checked)">
+          <span class="privacy-toggle-slider"></span>
+        </label>
+      </div>
+    </div>
+
+    <!-- Save note -->
+    <div class="profile-save-hint" id="profileSaveHint"></div>
+  </div>
+</div>
+
+<!-- ── People-all overlay ── -->
+<div class="people-all-overlay" id="peopleAllOverlay">
+  <div class="detail-back-bar">
+    <button class="detail-back-btn" onclick="closePeopleAll()">← Back</button>
+    <span class="detail-back-crumb" id="peopleAllTitle"></span>
+  </div>
+  <div class="people-all-scroll">
+    <div class="people-all-grid" id="peopleAllGrid"></div>
+  </div>
+</div>
+
+<!-- ── Mobile navigation drawer ── -->
+<div class="nav-drawer-overlay" id="navDrawerOverlay" onclick="closeNavDrawer()"></div>
+<nav class="nav-drawer" id="navDrawer">
+  <div class="nav-drawer-handle"></div>
+  <div class="nav-drawer-header">
+    <button class="nav-drawer-close" onclick="closeNavDrawer()">✕</button>
+    <span class="nav-drawer-title">Menu</span>
+  </div>
+  <div class="nav-drawer-body">
+    <button class="nav-drawer-item active" data-view="all"        onclick="setView('all',this);closeNavDrawer()">All Titles</button>
+    <button class="nav-drawer-item"        data-view="movie"      onclick="setView('movie',this);closeNavDrawer()">🎬 Movies</button>
+    <button class="nav-drawer-item"        data-view="tv"         onclick="setView('tv',this);closeNavDrawer()">📺 TV Shows</button>
+    <button class="nav-drawer-item"        data-view="trending"   onclick="setView('trending',this);closeNavDrawer()">🔥 Trending</button>
+    <button class="nav-drawer-item"        data-view="discover"   onclick="setView('discover',this);closeNavDrawer()">🧭 Discover</button>
+    <div class="nav-drawer-divider"></div>
+    <button class="nav-drawer-item"        data-view="favourites" onclick="setView('favourites',this);closeNavDrawer()">❤️ Favourites</button>
+    <button class="nav-drawer-item"        data-view="watchlist"  onclick="setView('watchlist',this);closeNavDrawer()">🔖 Watchlist</button>
+    <button class="nav-drawer-item"        data-view="watching"   onclick="setView('watching',this);closeNavDrawer()">▶️ Watching</button>
+    <button class="nav-drawer-item"        data-view="finished"   onclick="setView('finished',this);closeNavDrawer()">✅ Finished</button>
+    <div class="nav-drawer-divider"></div>
+    <button class="nav-drawer-item"        data-view="upcoming"   onclick="setView('upcoming',this);closeNavDrawer()">📅 Upcoming</button>
+    <button class="nav-drawer-item"        data-view="actors"     onclick="setView('actors',this);closeNavDrawer()">🎭 Actors &amp; Directors</button>
+    <button class="nav-drawer-item"        data-view="stats"      id="statsDrawerItem" style="display:none" onclick="setView('stats',this);closeNavDrawer()">📊 Stats</button>
+    <div class="nav-drawer-divider"></div>
+    <button class="nav-drawer-item" onclick="closeNavDrawer();openProfile()">👤 Profile</button>
+    <button class="nav-drawer-item" onclick="closeNavDrawer();doLogout()" style="color:var(--accent2);display:flex;align-items:center;gap:10px">
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      Sign out
+    </button>
+  </div>
+</nav>
+
+<!-- ── Episode detail overlay ── -->
+<div class="ep-detail-overlay" id="epDetailOverlay">
+  <div class="detail-back-bar">
+    <button class="detail-back-btn" onclick="closeEpisodeDetail()">← Back</button>
+    <span class="detail-back-crumb" id="epDetailCrumb"></span>
+  </div>
+  <div class="ep-detail-scroll" id="epDetailScroll">
+    <div class="ep-still-hero" id="epStillHero"></div>
+    <div class="ep-detail-body" id="epDetailBody"></div>
+  </div>
+</div>
+
+<!-- global loader shown during important operations -->
+<div id="globalLoader" class="global-loader hidden">
+  <div class="global-loader-inner">
+    <div class="global-loader-icon">
+      <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <!-- Signal arcs — each animated with staggered delay -->
+        <path class="signal-arc signal-arc-1" d="M20 44 C20 34 28 26 32 26 C36 26 44 34 44 44" stroke-width="2.5" stroke-linecap="round"/>
+        <path class="signal-arc signal-arc-2" d="M13 51 C13 36 21 24 32 24 C43 24 51 36 51 51" stroke-width="2.5" stroke-linecap="round"/>
+        <path class="signal-arc signal-arc-3" d="M6 58 C6 37 17 21 32 21 C47 21 58 37 58 58"  stroke-width="2.5" stroke-linecap="round"/>
+        <!-- Centre dot -->
+        <circle class="signal-dot" cx="32" cy="50" r="3.5"/>
+      </svg>
+    </div>
+    <div class="global-loader-wordmark">
+      <span class="global-loader-sub">Stream</span>
+      <span class="global-loader-title">Intel</span>
+    </div>
+  </div>
+</div>
+
+<!-- ── Watch History overlay ── -->
+<div class="profile-overlay" id="watchHistoryOverlay">
+  <div class="detail-back-bar">
+    <button class="detail-back-btn" onclick="closeWatchHistory()">← Back</button>
+    <span class="detail-back-crumb">Watch History</span>
+  </div>
+  <div class="profile-scroll">
+    <div class="wh-wrap">
+      <!-- Filter pills -->
+      <div class="wh-type-pills">
+        <button class="wh-pill active" data-wht="all"    onclick="whSetType('all',this)">All</button>
+        <button class="wh-pill"        data-wht="movie"  onclick="whSetType('movie',this)">🎬 Movies</button>
+        <button class="wh-pill"        data-wht="tv"     onclick="whSetType('tv',this)">📺 TV Shows</button>
+      </div>
+      <!-- Controls row -->
+      <div class="wh-controls">
+        <div class="wh-search-wrap">
+          <input class="wh-search-input" id="whSearchInput" type="text"
+                 placeholder="Search…" autocomplete="off"
+                 oninput="whApplyFilters()">
+        </div>
+        <!-- IMDb filter -->
+        <div class="genre-dropdown" id="whImdbDropdown">
+          <button class="sort-select genre-dropdown-btn" id="whImdbBtn"
+                  onclick="whToggleDropdown(event,'whImdbMenu')">Any IMDb ▾</button>
+          <div class="genre-dropdown-menu" id="whImdbMenu">
+            <div class="genre-option checked" onclick="whSetImdb(0,'Any IMDb',this)"><span class="genre-checkbox"></span>Any IMDb</div>
+            <div class="genre-option" onclick="whSetImdb(6,'6.0+',this)"><span class="genre-checkbox"></span>6.0+</div>
+            <div class="genre-option" onclick="whSetImdb(7,'7.0+',this)"><span class="genre-checkbox"></span>7.0+</div>
+            <div class="genre-option" onclick="whSetImdb(7.5,'7.5+',this)"><span class="genre-checkbox"></span>7.5+</div>
+            <div class="genre-option" onclick="whSetImdb(8,'8.0+',this)"><span class="genre-checkbox"></span>8.0+</div>
+          </div>
+        </div>
+        <!-- Genre filter -->
+        <div class="genre-dropdown" id="whGenreDropdown">
+          <button class="sort-select genre-dropdown-btn" id="whGenreBtn"
+                  onclick="whToggleDropdown(event,'whGenreMenu')">All Genres ▾</button>
+          <div class="genre-dropdown-menu" id="whGenreMenu"></div>
+        </div>
+        <!-- Sort -->
+        <div class="genre-dropdown" id="whSortDropdown">
+          <button class="sort-select genre-dropdown-btn" id="whSortBtn"
+                  onclick="whToggleDropdown(event,'whSortMenu')">By Watch Time ▾</button>
+          <div class="genre-dropdown-menu" id="whSortMenu">
+            <div class="genre-option checked" onclick="whSetSort('time','By Watch Time',this)"><span class="genre-checkbox"></span>By Watch Time</div>
+            <div class="genre-option" onclick="whSetSort('title','Title A–Z',this)"><span class="genre-checkbox"></span>Title A–Z</div>
+            <div class="genre-option" onclick="whSetSort('year','Year',this)"><span class="genre-checkbox"></span>Year</div>
+            <div class="genre-option" onclick="whSetSort('imdb','IMDb Score',this)"><span class="genre-checkbox"></span>IMDb Score</div>
+          </div>
+        </div>
+      </div>
+      <!-- Results -->
+      <div id="whList" class="wh-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Profile photo crop popup ── -->
+<div class="pic-crop-overlay" id="picCropOverlay" style="display:none">
+  <div class="pic-crop-modal">
+    <div class="pic-crop-header">
+      <span class="pic-crop-title">Adjust Photo Position</span>
+      <div class="pic-crop-hint">Drag the photo to position it in the circle</div>
+    </div>
+    <div class="pic-crop-stage" id="picCropStage">
+      <div class="pic-crop-img-wrap" id="picCropImgWrap">
+        <img id="picCropImg" alt="Profile photo">
+      </div>
+      <div class="pic-crop-circle-mask"></div>
+    </div>
+    <div class="pic-crop-actions">
+      <button class="pic-crop-cancel-btn" onclick="cancelPicCrop()">Cancel</button>
+      <button class="pic-crop-save-btn" onclick="savePicCrop()">Save Photo</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Friends overlay ── -->
+<div class="friends-overlay hidden" id="friendsOverlay">
+  <div class="detail-back-bar">
+    <button class="detail-back-btn" onclick="closeFriends()">← Back</button>
+    <span class="detail-back-crumb">Friends</span>
+  </div>
+  <div class="friends-scroll">
+    <!-- Search -->
+    <div class="friends-section">
+      <div class="friends-section-title">Add Friend</div>
+      <div class="friends-search-row">
+        <input class="friends-search-input" id="friendSearchInput" type="text" placeholder="Search by username…" oninput="onFriendSearch(this.value)" autocomplete="off">
+      </div>
+      <div class="friends-search-results" id="friendSearchResults"></div>
+    </div>
+    <!-- Pending requests -->
+    <div class="friends-section" id="friendRequestsSection" style="display:none">
+      <div class="friends-section-title" id="friendRequestsTitle">Pending Requests</div>
+      <div class="friends-list" id="friendRequestsList"></div>
+    </div>
+    <!-- Sent requests -->
+    <div class="friends-section" id="sentRequestsSection" style="display:none">
+      <div class="friends-section-title" id="sentRequestsTitle">Sent Requests</div>
+      <div class="friends-list" id="sentRequestsList"></div>
+    </div>
+    <!-- Friends list -->
+    <div class="friends-section">
+      <div class="friends-section-title">My Friends</div>
+      <div class="friends-list" id="friendsList">
+        <div class="friends-empty">No friends yet — search for someone above.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Share Message compose overlay ── -->
+<div class="share-msg-overlay hidden" id="shareMsgOverlay">
+  <div class="share-msg-backdrop" onclick="closeShareMsgDialog()"></div>
+  <div class="share-msg-panel">
+    <div class="share-msg-header">
+      <span class="share-msg-header-title">Send to a Friend</span>
+      <button class="share-msg-close" onclick="closeShareMsgDialog()" aria-label="Close">✕</button>
+    </div>
+    <div class="share-msg-title-row" id="shareMsgTitleRow"></div>
+    <div class="share-msg-to-label">To</div>
+    <div class="share-msg-friends" id="shareMsgFriends"></div>
+    <div class="share-msg-compose">
+      <textarea class="share-msg-textarea" id="shareMsgText" maxlength="500"
+        placeholder="What do you want to say about this title?…"
+        oninput="document.getElementById('shareMsgCharCount').textContent=this.value.length+'/500'"></textarea>
+      <div class="share-msg-footer">
+        <span class="share-msg-char-count" id="shareMsgCharCount">0/500</span>
+        <button class="share-msg-send-btn" onclick="sendShareMsg()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          Send
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Notification detail overlay ── -->
+<div class="notif-detail-overlay hidden" id="notifDetailOverlay">
+  <div class="notif-detail-backdrop" onclick="closeNotifDetail()"></div>
+  <div class="notif-detail-panel">
+    <button class="notif-detail-close" onclick="closeNotifDetail()" aria-label="Close">✕</button>
+    <div class="notif-detail-scroll" id="notifDetailContent"></div>
+  </div>
+</div>
+
+<!-- ── Share action prompt ── -->
+<div class="share-prompt hidden" id="sharePrompt">
+  <div class="share-prompt-inner">
+    <div class="share-prompt-title" id="sharePromptTitle">Share with friends?</div>
+    <div class="share-prompt-friends" id="sharePromptFriends"></div>
+    <div class="share-prompt-actions">
+      <button class="share-send-btn" id="shareSendBtn" onclick="confirmShare()">Share</button>
+      <button class="share-skip-btn" onclick="dismissSharePrompt()">Skip</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Notifications panel (body-level — must live outside backdrop-filter ancestor) ── -->
+<div class="notif-panel" id="notifPanel">
+  <div class="notif-panel-header">
+    <button class="notif-close-btn" onclick="toggleNotifPanel()" aria-label="Close">←</button>
+    <span class="notif-panel-title">Notifications</span>
+    <div class="notif-header-actions">
+      <button class="notif-mark-all" onclick="markAllNotifsRead()">Mark all read</button>
+      <button class="notif-clear-all" onclick="clearAllNotifs()" title="Remove all notifications">Remove all</button>
+    </div>
+  </div>
+  <div class="notif-push-prompt hidden" id="notifPushPrompt">
+    <span>Get push notifications on this device</span>
+    <div class="notif-push-actions">
+      <button class="notif-push-enable" onclick="enablePushFromPrompt()">Enable</button>
+      <button class="notif-push-dismiss" onclick="dismissPushPrompt()">Not now</button>
+    </div>
+  </div>
+  <div class="notif-list" id="notifList">
+    <div class="notif-empty">No notifications yet</div>
+  </div>
+  <button class="notif-show-more hidden" id="notifShowMore" onclick="loadMoreNotifs()">Show more ↓</button>
+</div>
+
+<!-- ── Friend profile overlay ── -->
+<div class="profile-overlay" id="friendProfileOverlay">
+  <div class="detail-back-bar">
+    <button class="detail-back-btn" onclick="closeFriendProfile()">← Back</button>
+    <span class="detail-back-crumb" id="fpoCrumb">Profile</span>
+  </div>
+  <div class="profile-scroll">
+    <div class="profile-hero">
+      <div class="profile-avatar-wrap">
+        <div class="profile-avatar" id="fpoAvatar">
+          <svg class="profile-avatar-placeholder" viewBox="0 0 80 80" fill="none">
+            <circle cx="40" cy="40" r="40" fill="rgba(255,255,255,0.06)"/>
+            <circle cx="40" cy="32" r="14" fill="rgba(255,255,255,0.18)"/>
+            <ellipse cx="40" cy="68" rx="22" ry="16" fill="rgba(255,255,255,0.12)"/>
+          </svg>
+          <img id="fpoAvatarImg" style="display:none" alt="">
+        </div>
+      </div>
+      <div class="profile-identity">
+        <div class="profile-displayname" id="fpoName"></div>
+        <div class="profile-username-sub" id="fpoUserSub"></div>
+      </div>
+    </div>
+    <div id="fpoContent"><div class="profile-section" style="text-align:center;color:var(--muted);padding:40px 0">Loading…</div></div>
+  </div>
+</div>
+
+<!-- ── Friend Library overlay ── -->
+<div class="profile-overlay" id="friendLibraryOverlay">
+  <div class="detail-back-bar">
+    <button class="detail-back-btn" onclick="closeFriendLibrary()">← Back</button>
+    <span class="detail-back-crumb" id="floCrumb">Library</span>
+  </div>
+  <div class="profile-scroll" id="floContent">
+    <div class="profile-section" style="text-align:center;color:var(--muted);padding:40px 0">Loading…</div>
+  </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script src="/js/auth.js"></script>
+<script src="/js/catalog.js"></script>
+<script src="/js/library.js"></script>
+<script src="/js/profile.js"></script>
+<script src="/js/friends.js"></script>
+<script>
+  // Hide toolbar on scroll-down, show on scroll-up (mobile only)
+  (function () {
+    var toolbar = document.getElementById('subToolbar');
+    var lastY = 0;
+    var ticking = false;
+    function onScroll() {
+      if (window.innerWidth > 768 || window._ignoreToolbarScroll) {
+        toolbar.classList.remove('toolbar-hide');
+        lastY = window.scrollY;
+        ticking = false;
+        return;
+      }
+      // Don't hide if filters panel is open
+      var filtersPanel = document.getElementById('toolbarFilters');
+      if (filtersPanel && !filtersPanel.classList.contains('filters-hidden')) {
+        ticking = false;
+        return;
+      }
+      var y = window.scrollY;
+      if (y > lastY && y > 80) {
+        toolbar.classList.add('toolbar-hide');
+      } else {
+        toolbar.classList.remove('toolbar-hide');
+      }
+      lastY = y;
+      ticking = false;
+    }
+    window.addEventListener('scroll', function () {
+      if (!ticking) { requestAnimationFrame(onScroll); ticking = true; }
+    }, { passive: true });
+  })();
+</script>
+
+<!-- Service Worker registration -->
+<script>
+  // Filter panel toggle — persists preference to localStorage
+  (function () {
+    var STORAGE_KEY = 'si_filters_open';
+    var stored = localStorage.getItem(STORAGE_KEY);
+    // Default: open on desktop, closed on mobile
+    var isOpen = stored !== null ? stored === '1' : window.innerWidth > 768;
+    function apply(open, animate) {
+      var panel = document.getElementById('toolbarFilters');
+      var btn   = document.getElementById('filterToggleBtn');
+      if (!panel || !btn) return;
+      if (open) {
+        panel.classList.remove('filters-hidden');
+        btn.classList.add('filters-open');
+      } else {
+        panel.classList.add('filters-hidden');
+        btn.classList.remove('filters-open');
+      }
+    }
+    window.toggleFilters = function () {
+      isOpen = !isOpen;
+      localStorage.setItem(STORAGE_KEY, isOpen ? '1' : '0');
+      apply(isOpen);
+      // Prevent scroll listener from hiding toolbar right after toggle
+      window._ignoreToolbarScroll = true;
+      setTimeout(function () { window._ignoreToolbarScroll = false; }, 400);
+    };
+    apply(isOpen);
+  })();
+
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js')
+        .then(reg => console.log('[SW] Registered, scope:', reg.scope))
+        .catch(err => console.warn('[SW] Registration failed:', err));
+    });
+  }
+</script>
+</body>
+</html>

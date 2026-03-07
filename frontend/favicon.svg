@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="44%" r="56%">
+      <stop offset="0%" stop-color="#5eead4" stop-opacity=".13"/>
+      <stop offset="100%" stop-color="#5eead4" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feDropShadow dx="0" dy="0" stdDeviation="10" flood-color="#5eead4" flood-opacity=".7"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="256" height="256" rx="52" fill="#0f1923"/>
+  <rect width="256" height="256" rx="52" fill="url(#bg)"/>
+
+  <!-- ══ LEFT hemisphere — bumpy outer contour (top-down dorsal view) ══
+       Each Q creates a visible lobe bump along the outer edge. -->
+  <path d="
+    M 128,28
+    Q 116,22  104,24
+    Q  88,16   76,28
+    Q  62,22   52,36
+    Q  38,34   28,50
+    Q  16,66   18,84
+    Q  10,102  16,120
+    Q  10,140  18,158
+    Q  16,178  30,192
+    Q  42,208  62,216
+    Q  82,226 106,228
+    Q 118,230 128,224
+    Z"
+    stroke="#5eead4" stroke-width="7.5" fill="rgba(94,234,212,.06)"
+    stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Left gyrus 1 — upper frontal C (opens right toward fissure) -->
+  <path d="M 92,38 Q 70,36 60,54 Q 52,68 60,80 Q 68,90 84,90 Q 98,88 106,76"
+    stroke="#5eead4" stroke-width="5.5" fill="none" stroke-linecap="round"/>
+
+  <!-- Left gyrus 2 — central/parietal C (opens right) -->
+  <path d="M 24,108 Q 14,128 20,146 Q 28,160 46,162 Q 62,162 70,148"
+    stroke="#5eead4" stroke-width="5.5" fill="none" stroke-linecap="round"/>
+
+  <!-- Left gyrus 3 — temporal/occipital C (opens right) -->
+  <path d="M 38,180 Q 30,196 46,208 Q 62,218 78,212 Q 90,204 92,190"
+    stroke="#5eead4" stroke-width="5.5" fill="none" stroke-linecap="round"/>
+
+  <!-- ══ RIGHT hemisphere — exact mirror ══ -->
+  <path d="
+    M 128,28
+    Q 140,22  152,24
+    Q 168,16  180,28
+    Q 194,22  204,36
+    Q 218,34  228,50
+    Q 240,66  238,84
+    Q 246,102 240,120
+    Q 246,140 238,158
+    Q 240,178 226,192
+    Q 214,208 194,216
+    Q 174,226 150,228
+    Q 138,230 128,224
+    Z"
+    stroke="#5eead4" stroke-width="7.5" fill="rgba(94,234,212,.06)"
+    stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Right gyrus 1 — upper frontal C (opens left toward fissure) -->
+  <path d="M 164,38 Q 186,36 196,54 Q 204,68 196,80 Q 188,90 172,90 Q 158,88 150,76"
+    stroke="#5eead4" stroke-width="5.5" fill="none" stroke-linecap="round"/>
+
+  <!-- Right gyrus 2 — central/parietal C (opens left) -->
+  <path d="M 232,108 Q 242,128 236,146 Q 228,160 210,162 Q 194,162 186,148"
+    stroke="#5eead4" stroke-width="5.5" fill="none" stroke-linecap="round"/>
+
+  <!-- Right gyrus 3 — temporal/occipital C (opens left) -->
+  <path d="M 218,180 Q 226,196 210,208 Q 194,218 178,212 Q 166,204 164,190"
+    stroke="#5eead4" stroke-width="5.5" fill="none" stroke-linecap="round"/>
+
+  <!-- ══ Longitudinal fissure ══ -->
+  <line x1="128" y1="28" x2="128" y2="224"
+    stroke="#5eead4" stroke-width="3" opacity=".22"
+    stroke-dasharray="9,7" stroke-linecap="round"/>
+
+  <!-- ══ Play triangle
+       A=(108,96)  B=(108,160)  C=(168,128)
+       Centroid X = (108+108+168)/3 = 128 ✓
+       Centroid Y = ( 96+160+128)/3 = 128 ✓  -->
+  <polygon points="108,96 108,160 168,128"
+    fill="#5eead4" opacity=".93" filter="url(#glow)"/>
+  <polygon points="108,96 108,128 140,112" fill="white" opacity=".12"/>
+</svg>

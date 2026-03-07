@@ -1,0 +1,12 @@
+{
+  "recommendations": [
+    "ms-python.python",
+    "ms-python.vscode-pylance",
+    "charliermarsh.ruff",
+    "eamodio.gitlens",
+    "GitHub.vscode-pull-request-github",
+    "qwtel.sqlite-viewer",
+    "humao.rest-client",
+    "gruntfurok.todo-tree"
+  ]
+}

@@ -1,0 +1,47 @@
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# ── Virtual environment ───────────────────────────────────────────────────────
+.venv/
+venv/
+env/
+ENV/
+
+# ── Secrets & config ──────────────────────────────────────────────────────────
+.env
+.env.*
+# keep the example template
+!.env.example
+
+# ── Database (keep the schema in git, never the live data file) ───────────────
+*.db
+*.sqlite
+*.sqlite3
+
+# ── OS junk ───────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Editors ───────────────────────────────────────────────────────────────────
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+
+# ── Test / coverage artefacts ─────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ── Logs ─────────────────────────────────────────────────────────────────────
+*.log
