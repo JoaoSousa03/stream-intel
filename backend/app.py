@@ -10,6 +10,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 from flask import Flask, send_from_directory, jsonify
+from flask_compress import Compress
 from werkzeug.middleware.proxy_fix import ProxyFix
 from backend.config import settings
 from backend.database import init_db, close_db
@@ -219,6 +220,11 @@ def create_app() -> Flask:
     # request.url_root returns https://... instead of http://...
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
+    # Gzip/Brotli compress all JSON + text responses ≥ 1 KB
+    app.config['COMPRESS_ALGORITHM'] = ['br', 'gzip']
+    app.config['COMPRESS_MIN_SIZE'] = 1000
+    Compress(app)
+
     # Register teardown
     app.teardown_appcontext(close_db)
 
@@ -274,6 +280,7 @@ def create_app() -> Flask:
     def debug_status():
         """Unauthenticated status endpoint — useful for verifying DB and scrape state."""
         import shutil
+
         db_path = str(settings.DB_PATH)
         info: dict = {
             "db_path": db_path,
@@ -297,14 +304,16 @@ def create_app() -> Flask:
                 info["db_size_mb"] = round(os.path.getsize(db_path) / 1_048_576, 2)
             try:
                 usage = shutil.disk_usage(parent)
-                info["disk_free_mb"]  = round(usage.free  / 1_048_576, 1)
+                info["disk_free_mb"] = round(usage.free / 1_048_576, 1)
                 info["disk_total_mb"] = round(usage.total / 1_048_576, 1)
             except Exception:
                 pass
             with sqlite3.connect(db_path) as _con:
                 _con.row_factory = sqlite3.Row
-                info["titles"] = _con.execute("SELECT COUNT(*) FROM titles").fetchone()[0]
-                info["users"]  = _con.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+                info["titles"] = _con.execute("SELECT COUNT(*) FROM titles").fetchone()[
+                    0
+                ]
+                info["users"] = _con.execute("SELECT COUNT(*) FROM users").fetchone()[0]
                 row = _con.execute(
                     "SELECT id, started_at, finished_at, mode, status, title_count "
                     "FROM scrape_runs ORDER BY id DESC LIMIT 1"
@@ -315,7 +324,7 @@ def create_app() -> Flask:
                 lib_active = _con.execute(
                     "SELECT COUNT(*) FROM library WHERE status != 'not-started' AND status IS NOT NULL"
                 ).fetchone()[0]
-                info["library_total"]  = lib
+                info["library_total"] = lib
                 info["library_active"] = lib_active
         except Exception as exc:
             info["error"] = str(exc)
@@ -324,6 +333,7 @@ def create_app() -> Flask:
     @app.errorhandler(500)
     def internal_error(e):
         import traceback
+
         tb = traceback.format_exc()
         print(f"[500] Unhandled exception:\n{tb}", flush=True)
         return jsonify({"error": "Internal server error", "detail": str(e)}), 500

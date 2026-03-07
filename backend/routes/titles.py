@@ -1,9 +1,11 @@
 # backend/routes/titles.py
 import json
 import os
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from hashlib import md5
 import requests as _requests
-from flask import Blueprint, g, jsonify, request
+from flask import Blueprint, g, jsonify, make_response, request
 from backend.auth import require_auth
 from backend.database import get_db
 
@@ -356,19 +358,36 @@ def title_stats():
 # ── /api/posters/cache ────────────────────────────────────────────────────────
 
 
+# Rate-limit poster-cache cleanup: one DELETE per hour instead of per-request
+_poster_cache_cleaned_at: float = 0.0
+
+
 @bp.route("/posters/cache", methods=["GET"])
 @require_auth
 def get_poster_cache():
+    global _poster_cache_cleaned_at
     db = get_db()
-    # Purge expired entries in-place before returning the cache
-    db.execute(
-        "DELETE FROM poster_cache WHERE expires_at IS NOT NULL AND expires_at < datetime('now')"
-    )
-    db.commit()
+    # Purge expired entries at most once per hour — avoids a write on every page load
+    now = time.time()
+    if now - _poster_cache_cleaned_at > 3600:
+        db.execute(
+            "DELETE FROM poster_cache WHERE expires_at IS NOT NULL AND expires_at < datetime('now')"
+        )
+        db.commit()
+        _poster_cache_cleaned_at = now
+
+    # Cheap ETag: row count + latest fetched_at — skip full fetch if nothing changed
+    meta = db.execute(
+        "SELECT COUNT(*) AS n, MAX(fetched_at) AS last FROM poster_cache"
+    ).fetchone()
+    etag = md5(f"{meta['n']}:{meta['last']}".encode()).hexdigest()[:16]
+    if request.headers.get("If-None-Match") == etag:
+        return make_response("", 304)
+
     rows = db.execute(
         "SELECT cache_key, poster_url, backdrop_url FROM poster_cache"
     ).fetchall()
-    return jsonify(
+    resp = jsonify(
         {
             "cache": {
                 r["cache_key"]: {
@@ -379,6 +398,9 @@ def get_poster_cache():
             }
         }
     )
+    resp.headers["ETag"] = etag
+    resp.headers["Cache-Control"] = "no-cache"
+    return resp
 
 
 @bp.route("/posters/cache", methods=["POST"])

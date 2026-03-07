@@ -1,5 +1,6 @@
 # backend/routes/library.py
-from flask import Blueprint, g, jsonify, request
+from hashlib import md5
+from flask import Blueprint, g, jsonify, make_response, request
 from backend.auth import require_auth
 from backend.database import get_db
 from backend.routes.profile import cache_stats
@@ -11,15 +12,29 @@ bp = Blueprint("library", __name__, url_prefix="/api")
 @require_auth
 def get_library():
     db = get_db()
+    uid = g.current_user["user_id"]
+
+    # Cheap ETag: row count + max updated_at — skip full fetch on cache hit
+    meta = db.execute(
+        "SELECT COUNT(*) AS n, MAX(updated_at) AS last FROM library WHERE user_id=?",
+        (uid,),
+    ).fetchone()
+    etag = md5(f"{meta['n']}:{meta['last']}".encode()).hexdigest()[:16]
+    if request.headers.get("If-None-Match") == etag:
+        return make_response("", 304)
+
     rows = db.execute(
         """SELECT l.platform, l.title, l.is_fav, l.status, l.notes, l.user_rating,
                   l.updated_at, COALESCE(t.runtime_mins, 0) AS runtime_mins
            FROM library l
            LEFT JOIN titles t ON t.platform = l.platform AND t.title = l.title
            WHERE l.user_id=?""",
-        (g.current_user["user_id"],),
+        (uid,),
     ).fetchall()
-    return jsonify({"library": [dict(r) for r in rows]})
+    resp = jsonify({"library": [dict(r) for r in rows]})
+    resp.headers["ETag"] = etag
+    resp.headers["Cache-Control"] = "no-cache"
+    return resp
 
 
 @bp.route("/library", methods=["POST"])
