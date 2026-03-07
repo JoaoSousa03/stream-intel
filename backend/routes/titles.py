@@ -129,7 +129,7 @@ def get_titles():
     unique_mode = args.get("unique") == "1"
     if unique_mode:
         UCOLS = """
-               tp.prim         AS platform,
+               COALESCE(ul.platform, tp.prim) AS platform,
                t.title, t.content_type,
                MAX(t.imdb_score)      AS imdb_score,
                MAX(t.imdb_votes)      AS imdb_votes,
@@ -158,15 +158,34 @@ def get_titles():
                     GROUP BY platform
                 ) pu WHERE pu.u IS NOT NULL
                ) AS platform_urls_raw,
-               COALESCE(l.is_fav,  0)            AS is_fav,
-               COALESCE(l.status, 'not-started') AS status,
-               l.notes"""
+               COALESCE(ul.is_fav,  0)            AS is_fav,
+               COALESCE(ul.status, 'not-started') AS status,
+               ul.notes"""
         best_rank_region_clause = "AND region=?" if region_filter else ""
         best_rank_params = [region_filter] if region_filter else []
         rows = db.execute(
             f"""WITH tp AS (
                     SELECT title, content_type, MIN(platform) AS prim
                     FROM titles GROUP BY title, content_type
+                ),
+                ul AS (
+                    -- Best library row per title for this user, across any platform.
+                    -- Priority: finished > watching > watchlist > not-started.
+                    -- This ensures getEntry() on the frontend matches regardless of
+                    -- which platform the user originally added the title on.
+                    SELECT platform, title,
+                           is_fav, status, notes,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY title
+                               ORDER BY CASE status
+                                   WHEN 'finished'  THEN 4
+                                   WHEN 'watching'  THEN 3
+                                   WHEN 'watchlist' THEN 2
+                                   WHEN 'not-started' THEN 1
+                                   ELSE 0 END DESC,
+                               is_fav DESC
+                           ) AS rn
+                    FROM library WHERE user_id=?
                 ),
                 best_rank AS (
                     SELECT title, content_type, ranking_position,
@@ -185,8 +204,7 @@ def get_titles():
                     SELECT title, content_type, ranking_position
                     FROM best_rank WHERE rn=1
                 ) br ON br.title=t.title AND br.content_type=t.content_type
-                LEFT JOIN library l
-                       ON l.user_id=? AND l.platform=tp.prim AND l.title=t.title
+                LEFT JOIN ul ON ul.title=t.title AND ul.rn=1
                 {where}
                 GROUP BY t.title, t.content_type
                 ORDER BY {order}
@@ -693,7 +711,7 @@ def platform_logos():
             provider_data = _tmdb(
                 f"/watch/providers/{media_type}", watch_region="US", language="en-US"
             )
-            for p in (provider_data.get("results") or []):
+            for p in provider_data.get("results") or []:
                 pid = p.get("provider_id")
                 if pid and pid not in by_id:
                     by_id[pid] = p

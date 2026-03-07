@@ -1,13 +1,13 @@
 // ── Favourites & status ───────────────────────────────────────────────────────
 function _syncCardActions(tk) {
-  const card = document.querySelector(`[data-tk="${CSS.escape(tk)}"]`);
-  if (!card) return;
-  const acts = card.querySelector('.card-actions');
-  if (!acts) return;
   const entry = libraryMap[tk] || {};
   const isFav = !!entry.is_fav;
   const isWl  = entry.status === 'watchlist';
-  acts.dataset.active = isFav && isWl ? 'both' : isFav ? 'fav' : isWl ? 'wl' : 'none';
+  const val   = isFav && isWl ? 'both' : isFav ? 'fav' : isWl ? 'wl' : 'none';
+  document.querySelectorAll(`[data-tk="${CSS.escape(tk)}"]`).forEach(card => {
+    const acts = card.querySelector('.card-actions');
+    if (acts) acts.dataset.active = val;
+  });
 }
 
 // Synchronize all UI elements for a given title across the app (cards, dots, modal buttons)
@@ -396,6 +396,10 @@ async function openModal(cardIdOrObj, fromHistory = false) {
     navStack.length = 0; // fresh navigation only clears when not coming from history
     history.pushState({ modal: 'title' }, '');
   }
+  // Boost z-index so the title detail appears above any full-screen overlay (e.g. watch history)
+  const _whOv = document.getElementById('watchHistoryOverlay');
+  document.getElementById('overlay').style.zIndex =
+    (_whOv && _whOv.classList.contains('open')) ? '2300' : '';
   currentModalTitle = t;
   const entry = getEntry(t);
   const isTV  = t.content_type === 'tv';
@@ -410,7 +414,7 @@ async function openModal(cardIdOrObj, fromHistory = false) {
   _buildModalPlatformUI(t);
   document.getElementById('mTitle').textContent    = t.title;
   document.getElementById('mTags').innerHTML = [
-    t.content_type ? `<span class="type-tag ${t.content_type}">${t.content_type}</span>` : '',
+    t.content_type ? `<span class="type-tag ${t.content_type}">${t.content_type==='movie'?'🎬 MOVIE':t.content_type==='tv'?'📺 TV':t.content_type}</span>` : '',
     t.release_year ? `<span class="year-text" style="font-size:13px">${t.release_year}</span>` : '',
     t.maturity_rating ? `<span class="rating-tag">${t.maturity_rating}</span>` : '',
     t.ranking_position > 0 ? `<span class="rating-tag" style="color:var(--accent);border-color:var(--accent)">#${t.ranking_position}${t.ranking_region ? ' · ' + t.ranking_region : ''}</span>` : '',
@@ -1556,19 +1560,28 @@ document.addEventListener('click', () => {
 
 function closeModal(e) { /* no-op kept for compatibility */ }
 function closeModalDirect() {
-  // If there's a page to go back to, go there instead of just closing
+  const overlayEl = document.getElementById('overlay');
+  // Start slide-out animation by removing .open, but keep z-index elevated until
+  // the transition finishes (320ms) so the slide-out is visible above any backdrop overlay.
+  overlayEl.classList.remove('open');
+  const resetZ = () => { overlayEl.style.zIndex = ''; };
+  const hadElevatedZ = overlayEl.style.zIndex !== '';
+  if (hadElevatedZ) setTimeout(resetZ, 360); else resetZ();
+
+  // If there's a page to go back to, re-open it
   const prev = navStack.pop();
   if (prev) {
-    document.getElementById('overlay').classList.remove('open');
     episodeFetchedSeasons.clear();
-    // Re-open previous page without pushing to stack again
     if (prev.type === 'actor') {
       document.getElementById('actorOverlay').classList.add('open');
     }
     return;
   }
-  document.getElementById('overlay').classList.remove('open');
-  document.body.style.overflow = '';
+  // Only restore scroll if no full-screen overlay is still open underneath
+  const anyOverlayOpen = ['watchHistoryOverlay','profileOverlay','actorOverlay',
+    'friendLibraryOverlay','friendProfileOverlay','friendsOverlay'].some(
+      id => document.getElementById(id)?.classList.contains('open'));
+  if (!anyOverlayOpen) document.body.style.overflow = '';
   episodeFetchedSeasons.clear();
 }
 document.addEventListener('keydown', e=>{
@@ -1593,17 +1606,40 @@ function buildGenreFilter() {
 function toggleGenre(genre,el){if(activeGenres.has(genre)){activeGenres.delete(genre);el.classList.remove('checked');}else{activeGenres.add(genre);el.classList.add('checked');}updateGenreBtn();applyFilters();}
 function clearGenres(){activeGenres.clear();document.querySelectorAll('#genreDropdownMenu .genre-option').forEach(e=>e.classList.remove('checked'));updateGenreBtn();applyFilters();}
 function updateGenreBtn(){const b=document.getElementById('genreDropdownBtn');if(activeGenres.size===0)b.textContent='All Genres ▾';else if(activeGenres.size===1)b.textContent=formatGenre([...activeGenres][0])+' ▾';else b.textContent=`${activeGenres.size} Genres ▾`;}
-function toggleGenreDropdown(e){e.stopPropagation();const btn=e.currentTarget;const menu=document.getElementById('genreDropdownMenu');const r=btn.getBoundingClientRect();const bottomGap=window.innerWidth<=768?70:8;menu.style.top=r.bottom+'px';menu.style.maxHeight=Math.max(120,window.innerHeight-r.bottom-bottomGap)+'px';document.querySelectorAll('.genre-dropdown-menu.open').forEach(m=>{if(m!==menu)m.classList.remove('open');});document.querySelectorAll('.sort-select.dropdown-open').forEach(b=>{if(b!==btn)b.classList.remove('dropdown-open');});menu.classList.toggle('open');btn.classList.toggle('dropdown-open',menu.classList.contains('open'));if(!menu.classList.contains('open'))btn.blur();}
+function _placeMenu(menu, btn) {
+  // Inside the filter sheet, menus expand inline — no fixed positioning needed
+  if (document.getElementById('filterSheetBody')?.contains(menu)) {
+    menu.style.maxHeight = '220px';
+    menu.style.top = menu.style.left = menu.style.right = '';
+    return;
+  }
+  const r = btn.getBoundingClientRect();
+  const isMobile = window.innerWidth <= 768;
+  const bottomGap = isMobile ? 70 : 8;
+  menu.style.maxHeight = Math.max(120, window.innerHeight - r.bottom - bottomGap) + 'px';
+  if (isMobile) {
+    // Mobile uses position:fixed (CSS override) → viewport-relative top
+    menu.style.top = r.bottom + 'px';
+    menu.style.left = '';
+    menu.style.right = '';
+  } else {
+    // Desktop uses position:absolute relative to .genre-dropdown — CSS top:calc(100%+6px) is correct.
+    // Only override left/right to prevent the menu overflowing the viewport's right edge.
+    menu.style.top = '';
+    const mw = Math.max(menu.offsetWidth || 0, 220);
+    const overflows = r.left + mw > window.innerWidth - 8;
+    if (overflows) { menu.style.left = 'auto'; menu.style.right = '0'; }
+    else           { menu.style.left = '0';    menu.style.right = 'auto'; }
+  }
+}
+function toggleGenreDropdown(e){e.stopPropagation();const btn=e.currentTarget;const menu=document.getElementById('genreDropdownMenu');_placeMenu(menu,btn);document.querySelectorAll('.genre-dropdown-menu.open').forEach(m=>{if(m!==menu)m.classList.remove('open');});document.querySelectorAll('.sort-select.dropdown-open').forEach(b=>{if(b!==btn)b.classList.remove('dropdown-open');});menu.classList.toggle('open');btn.classList.toggle('dropdown-open',menu.classList.contains('open'));if(!menu.classList.contains('open'))btn.blur();}
 
 // ── Votes dropdown ────────────────────────────────────────────────────────────
 function toggleVotesDropdown(e) {
   e.stopPropagation();
   const btn = e.currentTarget;
   const menu = document.getElementById('votesDropdownMenu');
-  const r = btn.getBoundingClientRect();
-  const bottomGap = window.innerWidth <= 768 ? 70 : 8;
-  menu.style.top = r.bottom + 'px';
-  menu.style.maxHeight = Math.max(120, window.innerHeight - r.bottom - bottomGap) + 'px';
+  _placeMenu(menu, btn);
   document.querySelectorAll('.genre-dropdown-menu.open').forEach(m => { if (m !== menu) m.classList.remove('open'); });
   document.querySelectorAll('.sort-select.dropdown-open').forEach(b => { if (b !== btn) b.classList.remove('dropdown-open'); });
   menu.classList.toggle('open');
@@ -1632,10 +1668,7 @@ function toggleSortDropdown(e) {
   e.stopPropagation();
   const btn = e.currentTarget;
   const menu = document.getElementById('sortDropdownMenu');
-  const r = btn.getBoundingClientRect();
-  const bottomGap = window.innerWidth <= 768 ? 70 : 8;
-  menu.style.top = r.bottom + 'px';
-  menu.style.maxHeight = Math.max(120, window.innerHeight - r.bottom - bottomGap) + 'px';
+  _placeMenu(menu, btn);
   document.querySelectorAll('.genre-dropdown-menu.open').forEach(m => { if (m !== menu) m.classList.remove('open'); });
   document.querySelectorAll('.sort-select.dropdown-open').forEach(b => { if (b !== btn) b.classList.remove('dropdown-open'); });
   menu.classList.toggle('open');
@@ -1666,7 +1699,7 @@ function buildExcludeFilter(){
 function toggleExclude(genre,el){if(excludedGenres.has(genre)){excludedGenres.delete(genre);el.classList.remove('checked');}else{excludedGenres.add(genre);el.classList.add('checked');}updateExcludeBtn();applyFilters();}
 function clearExcluded(){excludedGenres.clear();document.querySelectorAll('#genreExcludeMenu .genre-option').forEach(e=>e.classList.remove('checked'));updateExcludeBtn();applyFilters();}
 function updateExcludeBtn(){const b=document.getElementById('genreExcludeBtn');if(excludedGenres.size===0){b.textContent='Exclude Genres ▾';b.style.color='';b.style.borderColor='';}else if(excludedGenres.size===1){b.textContent='✕ '+formatGenre([...excludedGenres][0])+' ▾';b.style.color='var(--accent2)';b.style.borderColor='var(--accent2)';}else{b.textContent=`✕ ${excludedGenres.size} Genres ▾`;b.style.color='var(--accent2)';b.style.borderColor='var(--accent2)';}}
-function toggleExcludeDropdown(e){e.stopPropagation();const btn=e.currentTarget;const menu=document.getElementById('genreExcludeMenu');const r=btn.getBoundingClientRect();const bottomGap=window.innerWidth<=768?70:8;menu.style.top=r.bottom+'px';menu.style.maxHeight=Math.max(120,window.innerHeight-r.bottom-bottomGap)+'px';document.querySelectorAll('.genre-dropdown-menu.open').forEach(m=>{if(m!==menu)m.classList.remove('open');});document.querySelectorAll('.sort-select.dropdown-open').forEach(b=>{if(b!==btn)b.classList.remove('dropdown-open');});menu.classList.toggle('open');btn.classList.toggle('dropdown-open',menu.classList.contains('open'));if(!menu.classList.contains('open'))btn.blur();}
+function toggleExcludeDropdown(e){e.stopPropagation();const btn=e.currentTarget;const menu=document.getElementById('genreExcludeMenu');_placeMenu(menu,btn);document.querySelectorAll('.genre-dropdown-menu.open').forEach(m=>{if(m!==menu)m.classList.remove('open');});document.querySelectorAll('.sort-select.dropdown-open').forEach(b=>{if(b!==btn)b.classList.remove('dropdown-open');});menu.classList.toggle('open');btn.classList.toggle('dropdown-open',menu.classList.contains('open'));if(!menu.classList.contains('open'))btn.blur();}
 document.addEventListener('click',(e)=>{
   if(!document.getElementById('genreDropdown').contains(e.target)) { document.getElementById('genreDropdownMenu').classList.remove('open'); document.getElementById('genreDropdownBtn')?.classList.remove('dropdown-open'); }
   if(!document.getElementById('genreExcludeDropdown').contains(e.target)) { document.getElementById('genreExcludeMenu').classList.remove('open'); document.getElementById('genreExcludeBtn')?.classList.remove('dropdown-open'); }

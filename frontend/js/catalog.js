@@ -646,7 +646,7 @@ function renderDiscover() {
             const tkJs   = jsEsc(tk);
             const plist  = (t.platforms || t.platform || '').split(',').map(p => p.trim()).filter(Boolean);
             const platHtml = plist.length
-              ? `<div class="platform-badges">${plist.map(p => `<span class="platform-badge ${p}">${platLogo(p)}<span>${formatPlatform(p)}</span></span>`).join('')}</div>`
+              ? `<div class="platform-badges">${plist.slice(0,3).map(p => `<span class="platform-badge ${p}" title="${formatPlatform(p)}">${platLogo(p)}</span>`).join('')}${plist.length>3?`<span class="platform-badge plat-overflow">+${plist.length-3}</span>`:''}</div>`
               : '';
             const sv = sec.fmt(sec.score(t));
             const scoreHtml = sec.label === 'IMDb'
@@ -667,7 +667,7 @@ function renderDiscover() {
                 <div class="card-body">
                   <div class="card-title">${escHtml(t.title)}</div>
                   <div class="card-sub">
-                    <span class="type-tag ${t.content_type}">${t.content_type||'?'}</span>
+                    <span class="type-tag ${t.content_type}">${t.content_type==='movie'?'🎬 MOVIE':t.content_type==='tv'?'📺 TV':t.content_type||'?'}</span>
                     <span class="year-text">${t.release_year||'—'}</span>
                   </div>
                   ${scoreHtml}
@@ -1128,9 +1128,22 @@ async function loadPlatformLogos() {
 
 function buildPlatformFilters() {
   const platforms = ['all', ...new Set(allTitles.map(t=>t.platform))];
-  document.getElementById('platformFilter').innerHTML = platforms.map((p,i)=>
-    `<button class="pill${i===0?' active':''}" onclick="setPlatformFilter('${p}',this)">${p==='all'?'All Platforms':platLogo(p)+formatPlatform(p)}</button>`
+  const VISIBLE = 5; // "All" + 4 platforms visible before collapse
+  const pills = platforms.map((p,i)=>
+    `<button class="pill${i===0?' active':''}${i>=VISIBLE?' plat-extra hidden':''}" onclick="setPlatformFilter('${p}',this)">${p==='all'?'All Platforms':platLogo(p)+formatPlatform(p)}</button>`
   ).join('');
+  const showMore = platforms.length > VISIBLE
+    ? `<button class="pill plat-expand-btn" onclick="togglePlatformExpand(this)">+${platforms.length-VISIBLE} more</button>`
+    : '';
+  document.getElementById('platformFilter').innerHTML = pills + showMore;
+}
+
+function togglePlatformExpand(btn) {
+  const hidden = document.querySelectorAll('#platformFilter .plat-extra');
+  const expanded = btn.dataset.expanded === '1';
+  hidden.forEach(el => el.classList.toggle('hidden', expanded));
+  btn.dataset.expanded = expanded ? '0' : '1';
+  btn.textContent = expanded ? `+${hidden.length} more` : 'Show less';
 }
 
 const COUNTRY_NAMES = {
@@ -1210,10 +1223,7 @@ function toggleRegionDropdown(e) {
   e.stopPropagation();
   const btn = e.currentTarget;
   const menu = document.getElementById('regionDropdownMenu');
-  const r = btn.getBoundingClientRect();
-  const bottomGap = window.innerWidth <= 768 ? 70 : 8;
-  menu.style.top = r.bottom + 'px';
-  menu.style.maxHeight = Math.max(120, window.innerHeight - r.bottom - bottomGap) + 'px';
+  _placeMenu(menu, btn);
   document.querySelectorAll('.genre-dropdown-menu.open').forEach(m => { if (m !== menu) m.classList.remove('open'); });
   document.querySelectorAll('.sort-select.dropdown-open').forEach(b => { if (b !== btn) b.classList.remove('dropdown-open'); });
   menu.classList.toggle('open');
@@ -1330,6 +1340,7 @@ function _applyFiltersNow() {
     statsLbl2.textContent = `titles from ${new Set(allTitles.flatMap(t => (t.regions||'').split(',').map(r=>r.trim()))).size} regions`;
   }
   _updateClearUI();
+  _updateFilterToggleBtn();
 }
 
 function _updateClearUI() {
@@ -1351,7 +1362,84 @@ function clearSearch() {
   applyFilters(true);
 }
 
+// Compute top genres client-side from allTitles + libraryMap.
+// Guarantees the chip count matches the library genre filter exactly.
+function computeTopGenres(n) {
+  const freq = {};
+  for (const t of allTitles) {
+    const entry = getEntry(t);
+    const inLib = entry.is_fav || entry.status === 'watchlist' || entry.status === 'watching' || entry.status === 'finished';
+    if (!inLib) continue;
+    const genre = t.genre || '';
+    if (!genre || genre === 'Unknown') continue;
+    for (const g of genre.split(',')) {
+      const gn = g.trim();
+      if (gn) freq[gn] = (freq[gn] || 0) + 1;
+    }
+  }
+  return Object.entries(freq)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, n || 6)
+    .map(([genre, count]) => ({ genre, count }));
+}
+window.computeTopGenres = computeTopGenres;
+
+// ── Mobile card status menu ──────────────────────────────────────────────────
+function openCardMenu(tk, btn) {
+  const existing = document.getElementById('cardMenuPopup');
+  if (existing) { existing.remove(); return; }
+  const t = cardDataStore[tk];
+  if (!t) return;
+  const status = getEntry(t).status || 'not-started';
+  const items = [
+    { label: '🔖 Watchlist', s: 'watchlist' },
+    { label: '▶️ Watching',  s: 'watching'  },
+    { label: '✅ Finished',  s: 'finished'  },
+  ];
+  const popup = document.createElement('div');
+  popup.id = 'cardMenuPopup';
+  popup.className = 'card-menu-popup';
+  const tkEsc = tk.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+  popup.innerHTML = items.map(item => `
+    <button class="card-menu-item${status === item.s ? ' active' : ''}" onclick="event.stopPropagation();setCardStatus('${tkEsc}','${item.s}')">${item.label}</button>
+  `).join('') + (status !== 'not-started'
+    ? `<button class="card-menu-item remove" onclick="event.stopPropagation();setCardStatus('${tkEsc}','not-started')">🗑️ Remove</button>`
+    : '');
+  const rect = btn.getBoundingClientRect();
+  popup.style.position = 'fixed';
+  popup.style.zIndex   = '3000';
+  popup.style.top      = (rect.bottom + 6) + 'px';
+  if (rect.left + rect.width / 2 < window.innerWidth / 2) {
+    popup.style.left  = Math.max(6, rect.left) + 'px';
+    popup.style.right = 'auto';
+  } else {
+    popup.style.right = Math.max(6, window.innerWidth - rect.right) + 'px';
+    popup.style.left  = 'auto';
+  }
+  document.body.appendChild(popup);
+  setTimeout(() => { document.addEventListener('click', closeCardMenu, { once: true }); }, 0);
+}
+function closeCardMenu() { document.getElementById('cardMenuPopup')?.remove(); }
+function setCardStatus(tk, status) {
+  const t = cardDataStore[tk];
+  if (!t) return;
+  const cur = getEntry(t).status || 'not-started';
+  setStatus(t, cur === status ? 'not-started' : status);
+  closeCardMenu();
+}
+window.openCardMenu  = openCardMenu;
+window.closeCardMenu = closeCardMenu;
+window.setCardStatus = setCardStatus;
+
 function clearAllFilters() {
+  // Reset search box
+  const sb = document.getElementById('searchBox');
+  if (sb) sb.value = '';
+  document.getElementById('searchClearBtn')?.style && (document.getElementById('searchClearBtn').style.display = 'none');
+  // Reset sort to default
+  if (typeof setSortFilter === 'function') setSortFilter('rank', 'By Rank');
+  // Reset status sub-filter
+  if (activeStatusFilter !== 'all') setStatusFilter('all', null);
   // Reset platform
   activePlatform = 'all';
   document.querySelectorAll('#platformFilter .pill').forEach((p, i) => p.classList.toggle('active', i === 0));
@@ -1374,6 +1462,7 @@ function clearAllFilters() {
   if (typeof clearGenres   === 'function') clearGenres();
   if (typeof clearExcluded === 'function') clearExcluded();
   applyFilters(true);
+  _updateFilterToggleBtn();
 }
 
 // ── Render ────────────────────────────────────────────────────────────────────
@@ -1462,9 +1551,13 @@ function renderCard(t, i) {
   const tk     = titleKey(t);
   const tkAttr = escAttr(tk);
 
-  // Rank badge only shown on Trending tab
+  // Rank badge only shown on Trending tab (inside hover overlay)
   const rankHtml = activeType === 'trending' && t.ranking_position > 0
     ? `<div class="rank-badge">#${t.ranking_position}${t.ranking_region ? ` <span class="rank-region">${t.ranking_region}</span>` : ''}</div>`
+    : '';
+  // Always-visible watch-time rank badge (set by _renderWhList, never mutates allTitles)
+  const whRankHtml = t._wh_rank != null
+    ? `<div class="wh-rank-badge${t._wh_rank <= 3 ? ' top3' : ''}">#${t._wh_rank}</div>`
     : '';
 
   const statusHtml = status==='watching'
@@ -1474,21 +1567,22 @@ function renderCard(t, i) {
 
   const imdb = t.imdb_score ? `<div class="score-block"><div class="score-label">${_imdbStarSvg(11)} IMDb</div><div class="score-value imdb">${t.imdb_score.toFixed(1)}</div><div class="score-votes">${fmtVotes(t.imdb_votes)}</div></div>` : '';
   const rt   = t.tomatometer ? `<div class="score-block"><div class="score-label">${_rtTomatoSvg(11)} RT</div><div class="score-value rt">${t.tomatometer}%</div></div>` : '';
-  const genres = (t.genre&&t.genre!=='Unknown') ? t.genre.split(',').slice(0,2).map(g=>`<span class="genre-chip">${formatGenre(g)}</span>`).join('') : '';
+  const genres = (t.genre&&t.genre!=='Unknown') ? t.genre.split(',').slice(0,2).map(g=>`<span class="genre-chip">${genreEmoji(formatGenre(g))} ${formatGenre(g)}</span>`).join('') : '';
 
   // Platform badges — show when platform filter is 'all' (otherwise obvious)
   let platformBadgesHtml = '';
   if (activePlatform === 'all') {
     const plist = (t.platforms || t.platform || '').split(',').map(p => p.trim()).filter(Boolean);
     platformBadgesHtml = plist.length
-      ? `<div class="platform-badges">${plist.map(p => `<span class="platform-badge ${p}">${platLogo(p)}<span>${formatPlatform(p)}</span></span>`).join('')}</div>`
+      ? `<div class="platform-badges">${plist.slice(0,3).map(p => `<span class="platform-badge ${p}" title="${formatPlatform(p)}">${platLogo(p)}</span>`).join('')}${plist.length>3?`<span class="platform-badge plat-overflow">+${plist.length-3}</span>`:''}</div>`
       : '';
   }
 
   return `
-    <div class="card" style="animation-delay:${delay}s" data-tk="${tkAttr}" onclick="openModal('${jsEsc(tk)}')" >
+    <div class="card" style="animation-delay:${delay}s" data-tk="${tkAttr}" onclick="if(!event.target.closest('button'))openModal('${jsEsc(tk)}')" ontouchstart="if(!event.target.closest('button'))this.classList.add('card-tapped')" ontouchend="this.classList.remove('card-tapped')" ontouchcancel="this.classList.remove('card-tapped')" >
       <div class="card-poster" id="poster-${CSS.escape(tk)}">
         <div class="card-poster-placeholder"><div class="ph-icon">${t.content_type==='movie'?'🎬':'📺'}</div><div class="ph-title">${escHtml(t.title)}</div></div>
+        ${whRankHtml}
         <div class="card-poster-overlay">
           <div class="poster-top">${rankHtml}</div>
           <div class="poster-bottom">${statusHtml}<div></div></div>
@@ -1497,16 +1591,16 @@ function renderCard(t, i) {
           <button class="action-btn fav-btn${isFav?' active':''}" title="Favourite" onclick="event.stopPropagation();toggleFav('${jsEsc(tk)}',this)">${isFav?'♥':'♡'}</button>
           <button class="action-btn wl-btn${status==='watchlist'?' active':''}" title="Add to Watchlist" onclick="event.stopPropagation();toggleWatchlist('${jsEsc(tk)}',this)">🔖</button>
         </div>
+        <button class="action-btn menu-btn" title="Set status" onclick="event.stopPropagation();openCardMenu('${jsEsc(tk)}',this)">⋮</button>
       </div>
       ${status!=='not-started'?`<div class="card-status-bar ${status}"></div>`:''}
       <div class="card-body">
         <div class="card-title">${escHtml(t.title)}</div>
         <div class="card-sub">
-          <span class="type-tag ${t.content_type}">${t.content_type||'?'}</span>
+          <span class="type-tag ${t.content_type}">${t.content_type==='movie'?'🎬 MOVIE':t.content_type==='tv'?'📺 TV':t.content_type||'?'}</span>
           <span class="year-text" id="yeartext-${CSS.escape(tk)}">${_tvYearDisplay(t)}</span>
-          ${t.maturity_rating?`<span class="rating-tag">${t.maturity_rating}</span>`:''}
         </div>
-        ${(imdb||rt)?`<div class="card-scores">${imdb}${rt}</div>`:''}
+        ${(imdb||rt||t.maturity_rating)?`<div class="card-scores">${imdb}${rt}${t.maturity_rating?`<span class="rating-tag">${t.maturity_rating}</span>`:''}</div>`:''}
         ${genres?`<div class="genres">${genres}</div>`:''}
         ${platformBadgesHtml}
       </div>
@@ -1752,6 +1846,207 @@ document.addEventListener('click', e => {
   if (!e.target.closest('.genre-dropdown')) {
     document.querySelectorAll('.genre-dropdown-menu.open').forEach(m => m.classList.remove('open'));
   }
+});
+
+// ── Scroll-to-top button (mobile only) ──────────────────────────────────
+// On mobile, .main has overflow:visible so the window itself scrolls.
+document.addEventListener('DOMContentLoaded', () => {
+  const btn = document.getElementById('scrollTopBtn');
+  if (!btn) return;
+  let lastY       = window.pageYOffset;
+  let upTravel    = 0;          // accumulated upward px since last direction flip
+  const UP_THRESHOLD = 40;      // must scroll up this many px before button appears
+
+  function hideScrollBtn() {
+    upTravel = 0;
+    btn.classList.remove('visible');
+  }
+
+  window.addEventListener('scroll', () => {
+    const y    = window.pageYOffset;
+    const diff = y - lastY;
+    lastY      = y;
+
+    if (y <= 0) { hideScrollBtn(); return; }
+
+    if (diff < 0) {               // scrolling up
+      upTravel += -diff;
+      if (upTravel >= UP_THRESHOLD) btn.classList.add('visible');
+    } else if (diff > 0) {        // scrolling down — hide immediately
+      hideScrollBtn();
+    }
+  }, { passive: true });
+
+  // Hide the button whenever any overlay/modal opens
+  const overlayIds = ['overlay','actorOverlay','watchHistoryOverlay','profileOverlay',
+    'friendLibraryOverlay','friendProfileOverlay','friendsOverlay',
+    'peopleAllOverlay','filmographyAllOverlay','epDetailOverlay'];
+  const observer = new MutationObserver(() => {
+    const anyOpen = overlayIds.some(id => document.getElementById(id)?.classList.contains('open'));
+    if (anyOpen) hideScrollBtn();
+  });
+  overlayIds.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) observer.observe(el, { attributeFilter: ['class'] });
+  });
+});
+
+function scrollToTop() {
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ── Filter bottom sheet (mobile) ─────────────────────────────────────────────
+// On mobile, the Filters button opens a bottom-sheet overlay instead of the
+// inline toolbar. #toolbarFilters is "teleported" into the sheet body so that
+// all existing filter JS (toggleGenre, setVotesFilter, etc.) keeps working
+// with the same element IDs — no duplication required.
+
+window.openFilterSheet = function () {
+  const sheet    = document.getElementById('filterSheet');
+  const backdrop = document.getElementById('filterSheetBackdrop');
+  const body     = document.getElementById('filterSheetBody');
+  const filters  = document.getElementById('toolbarFilters');
+  if (!sheet || !filters) return;
+  // Teleport filter panel into sheet and make it visible
+  filters.classList.remove('filters-hidden');
+  body.appendChild(filters);
+  backdrop.classList.add('open');
+  sheet.classList.add('open');
+  // Close any open dropdown menus that may have been left open
+  document.querySelectorAll('.genre-dropdown-menu.open').forEach(m => m.classList.remove('open'));
+  document.querySelectorAll('.sort-select.dropdown-open').forEach(b => b.classList.remove('dropdown-open'));
+};
+
+window.closeFilterSheet = function () {
+  const sheet    = document.getElementById('filterSheet');
+  const backdrop = document.getElementById('filterSheetBackdrop');
+  const toolbar  = document.getElementById('subToolbar');
+  const filters  = document.getElementById('toolbarFilters');
+  if (!sheet || !filters) return;
+  // Close any open dropdown menus before teleporting back
+  document.querySelectorAll('.genre-dropdown-menu.open').forEach(m => m.classList.remove('open'));
+  document.querySelectorAll('.sort-select.dropdown-open').forEach(b => b.classList.remove('dropdown-open'));
+  // Teleport filter panel back to toolbar (hidden)
+  toolbar.appendChild(filters);
+  filters.classList.add('filters-hidden');
+  backdrop.classList.remove('open');
+  sheet.classList.remove('open');
+};
+
+window.applyFilterSheet = function () {
+  applyFilters(true);
+  window.closeFilterSheet();
+};
+
+// ── Filter sheet drag-to-dismiss ─────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  const sheet  = document.getElementById('filterSheet');
+  const handle = sheet?.querySelector('.filter-sheet-handle');
+  const header = sheet?.querySelector('.filter-sheet-header');
+  if (!sheet || !handle) return;
+
+  let startY = 0, currentY = 0, startTime = 0, dragging = false;
+
+  function onStart(e) {
+    if (!sheet.classList.contains('open')) return;
+    startY    = e.touches[0].clientY;
+    currentY  = startY;
+    startTime = Date.now();
+    dragging  = true;
+    sheet.style.transition = 'none';
+  }
+
+  function onMove(e) {
+    if (!dragging) return;
+    const dy = e.touches[0].clientY - startY;
+    if (dy < 0) return; // don't allow dragging up past natural position
+    currentY = e.touches[0].clientY;
+    sheet.style.transform = `translateY(${dy}px)`;
+  }
+
+  function onEnd() {
+    if (!dragging) return;
+    dragging = false;
+    sheet.style.transition = '';
+
+    const dy       = currentY - startY;
+    const elapsed  = Date.now() - startTime;
+    const velocity = dy / Math.max(elapsed, 1); // px/ms
+    const threshold = sheet.offsetHeight * 0.35;
+
+    if (dy > threshold || velocity > 0.5) {
+      sheet.style.transform = '';
+      window.closeFilterSheet();
+    } else {
+      sheet.style.transform = ''; // snap back — CSS transition handles it
+    }
+  }
+
+  // Attach to both the handle pill and the header bar
+  [handle, header].forEach(el => {
+    el.addEventListener('touchstart', onStart, { passive: true });
+  });
+  document.addEventListener('touchmove', onMove,  { passive: true });
+  document.addEventListener('touchend',  onEnd,   { passive: true });
+});
+
+function _updateFilterToggleBtn() {
+  const btn = document.getElementById('filterToggleBtn');
+  if (!btn) return;
+  const hasAny = activePlatform !== 'all'
+    || activeGenres.size > 0
+    || excludedGenres.size > 0
+    || activeVotes > 0;
+  btn.classList.toggle('filters-active', hasAny);
+}
+
+
+// ── Centralized body-scroll lock ─────────────────────────────────────────────
+// Prevents the background page from scrolling whenever any overlay is open.
+// Handles all overlays in one place, including dynamically-created ones.
+document.addEventListener('DOMContentLoaded', () => {
+  const OVERLAY_IDS = [
+    'overlay', 'actorOverlay', 'watchHistoryOverlay', 'profileOverlay',
+    'friendLibraryOverlay', 'friendProfileOverlay', 'friendsOverlay',
+    'peopleAllOverlay', 'epDetailOverlay', 'filterSheet',
+  ];
+
+  function syncBodyScroll() {
+    const anyOpen = OVERLAY_IDS.some(id => document.getElementById(id)?.classList.contains('open'))
+      || document.getElementById('filmographyAllOverlay')?.classList.contains('open');
+    document.body.style.overflow = anyOpen ? 'hidden' : '';
+  }
+
+  const observer = new MutationObserver(syncBodyScroll);
+  OVERLAY_IDS.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) observer.observe(el, { attributeFilter: ['class'] });
+  });
+
+  // filmographyAllOverlay is appended dynamically — watch for it
+  new MutationObserver(() => {
+    const filmOv = document.getElementById('filmographyAllOverlay');
+    if (filmOv && !filmOv._scrollLockObserved) {
+      filmOv._scrollLockObserved = true;
+      observer.observe(filmOv, { attributeFilter: ['class'] });
+    }
+  }).observe(document.body, { childList: true });
+});
+
+// Sub-bar scroll fade: remove right-edge gradient when user reaches the end
+document.addEventListener('DOMContentLoaded', () => {
+  ['statusSubBar', 'librarySubBar'].forEach(id => {
+    const bar = document.getElementById(id);
+    if (!bar) return;
+    function updateFade() {
+      const atEnd = bar.scrollLeft + bar.clientWidth >= bar.scrollWidth - 2;
+      bar.classList.toggle('sub-bar-end', atEnd);
+    }
+    bar.addEventListener('scroll', updateFade, { passive: true });
+    // Also re-check whenever tabs change (view switches may resize the bar)
+    new MutationObserver(updateFade).observe(bar, { childList: true, subtree: true, attributes: true, attributeFilter: ['style'] });
+    updateFade();
+  });
 });
 
 // Sync the header avatar circle: show photo if available, else show initial

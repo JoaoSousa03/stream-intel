@@ -720,7 +720,7 @@ async function openFriendProfile(uid) {
       <div class="profile-section-title">Favourite Genres</div>
       <div class="profile-genres">${s.top_genres.map(g =>
         `<div class="profile-genre-chip">
-          <span>${escHtml(formatGenre(g.genre))}</span>
+          <span>${genreEmoji(formatGenre(g.genre))} ${escHtml(formatGenre(g.genre))}</span>
           <div class="profile-genre-bar-wrap"><div class="profile-genre-bar" style="width:${Math.round(g.count/maxCount*100)}%"></div></div>
           <span style="font-size:11px;color:var(--muted)">${g.count}</span>
         </div>`).join('')}

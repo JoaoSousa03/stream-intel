@@ -91,6 +91,12 @@ async function loadProfile() {
   if (libToggle) libToggle.checked = !!data.library_public;
 
   const s = data.stats;
+  // Override server-side genre counts with client-side computed ones so the
+  // chip number matches the library genre filter result exactly.
+  if (typeof computeTopGenres === 'function') {
+    const cg = computeTopGenres(6);
+    if (cg.length) s.top_genres = cg;
+  }
 
   // ── Total watch time ───────────────────────────────────────────────────────
   document.getElementById('profileTotalTime').textContent = s.total_watch_time.label || '0m';
@@ -142,8 +148,8 @@ async function loadProfile() {
     genresSec.style.display = '';
     const maxCount = s.top_genres[0].count || 1;
     document.getElementById('profileGenres').innerHTML = s.top_genres.map(g => `
-      <div class="profile-genre-chip">
-        <span>${formatGenre(g.genre)}</span>
+      <div class="profile-genre-chip" onclick="_navToGenre('${g.genre.replace(/'/g,"\\'")}')">
+        <span>${genreEmoji(formatGenre(g.genre))} ${formatGenre(g.genre)}</span>
         <div class="profile-genre-bar-wrap">
           <div class="profile-genre-bar" style="width:${Math.round(g.count/maxCount*100)}%"></div>
         </div>
@@ -500,6 +506,21 @@ function _navToView(view, navType) {
   }
 }
 
+function _navToGenre(genre) {
+  closeProfile();
+  if (typeof clearAllFilters === 'function') clearAllFilters();
+  // Navigate to 'library' so only the user's own watched/watching titles are shown
+  if (typeof setView === 'function') {
+    const tab = document.querySelector('[data-view="library"]');
+    setView('library', tab || null, null);
+  }
+  if (typeof activeGenres !== 'undefined') {
+    activeGenres.add(genre);
+    if (typeof updateGenreBtn === 'function') updateGenreBtn();
+    if (typeof applyFilters === 'function') applyFilters(true);
+  }
+}
+
 // ── Profile picture vertical position (drag popup) ──────────────────────────
 let _cropDataUrl  = null;
 let _cropPosY     = 50;   // 0-100
@@ -739,9 +760,20 @@ function whToggleDropdown(e, menuId) {
   const menu = document.getElementById(menuId);
   if (!menu) return;
   const r = btn.getBoundingClientRect();
-  const bottomGap = window.innerWidth <= 768 ? 70 : 8;
+  const isMobile = window.innerWidth <= 768;
+  const bottomGap = isMobile ? 70 : 8;
+  // wh dropdowns use position:fixed (no backdrop-filter ancestor) → viewport top always correct
   menu.style.top = r.bottom + 'px';
   menu.style.maxHeight = Math.max(120, window.innerHeight - r.bottom - bottomGap) + 'px';
+  if (!isMobile) {
+    const mw = 200;
+    const overflows = r.left + mw > window.innerWidth - 8;
+    menu.style.left = overflows ? Math.max(8, r.right - mw) + 'px' : r.left + 'px';
+    menu.style.right = 'auto';
+  } else {
+    menu.style.left = '';
+    menu.style.right = '';
+  }
   document.querySelectorAll('.genre-dropdown-menu.open').forEach(m => { if (m !== menu) m.classList.remove('open'); });
   document.querySelectorAll('.sort-select.dropdown-open').forEach(b => { if (b !== btn) b.classList.remove('dropdown-open'); });
   menu.classList.toggle('open');
@@ -810,10 +842,12 @@ function _renderWhList(items) {
       : null;
     return full || wh;
   });
+  // Shallow copies so _wh_rank doesn't mutate the shared allTitles objects
+  const rankedList = tList.map((t, i) => ({ ...t, _wh_rank: i + 1 }));
   const grid = document.createElement('div');
   grid.className = 'grid';
   grid.innerHTML = (typeof renderCard === 'function')
-    ? tList.map((t, i) => renderCard(t, i)).join('')
+    ? rankedList.map((t, i) => renderCard(t, i)).join('')
     : '';
   wrap.innerHTML = '';
   wrap.appendChild(grid);
@@ -822,7 +856,7 @@ function _renderWhList(items) {
   // Using getElementById would return the catalog card with the same ID when a
   // title exists in both views — so we walk grid.children instead.
   if (typeof fetchPosterUrl === 'function') {
-    tList.forEach((t, i) => {
+    rankedList.forEach((t, i) => {
       const cardEl   = grid.children[i];
       if (!cardEl) return;
       const posterEl = cardEl.querySelector('.card-poster');

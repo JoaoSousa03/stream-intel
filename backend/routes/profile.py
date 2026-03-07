@@ -43,48 +43,87 @@ def _compute_stats(db, uid: int) -> dict:
         (uid,),
     ).fetchall()
 
-    movies_finished = movies_watching = movies_in_library = 0
-    tv_finished = tv_watching = 0
     total_lib = len(lib_rows)
     favs_count = 0
     genre_freq: dict = {}
     tv_runtime_map: dict = {}
     movie_mins = 0
 
-    finished_movies_list = []
+    # Per-title best status (finished beats watching beats watchlist)
+    # This deduplicates shows that exist on multiple platforms in the library.
+    STATUS_PRIO = {"finished": 3, "watching": 2, "watchlist": 1, "not-started": 0}
+    movie_best: dict = {}  # title_lower -> (best_status, runtime_mins, genre, is_fav)
+    tv_best: dict = {}  # title_lower -> (best_status, genre, is_fav)
+
     for r in lib_rows:
         ct = (r["content_type"] or "").lower()
         status = r["status"] or "not-started"
+        title_lower = r["title"].strip().lower()
         if r["is_fav"]:
             favs_count += 1
-        # Count genres for items the user has engaged with
-        if (
-            status in ("finished", "watching")
-            and r["genre"]
-            and r["genre"] != "Unknown"
-        ):
-            for g_name in r["genre"].split(","):
+        if ct == "movie":
+            prev_status, prev_rt, prev_genre, prev_fav = movie_best.get(
+                title_lower, ("not-started", None, None, False)
+            )
+            if STATUS_PRIO.get(status, 0) >= STATUS_PRIO.get(prev_status, 0):
+                movie_best[title_lower] = (
+                    status,
+                    r["runtime_mins"],
+                    r["genre"],
+                    bool(r["is_fav"]),
+                )
+            else:
+                # Keep best status but merge is_fav
+                movie_best[title_lower] = (
+                    prev_status,
+                    prev_rt,
+                    prev_genre or r["genre"],
+                    prev_fav or bool(r["is_fav"]),
+                )
+        elif ct == "tv":
+            prev_status, prev_genre, prev_fav = tv_best.get(
+                title_lower, ("not-started", None, False)
+            )
+            if STATUS_PRIO.get(status, 0) >= STATUS_PRIO.get(prev_status, 0):
+                tv_best[title_lower] = (status, r["genre"], bool(r["is_fav"]))
+            else:
+                tv_best[title_lower] = (
+                    prev_status,
+                    prev_genre or r["genre"],
+                    prev_fav or bool(r["is_fav"]),
+                )
+            tv_runtime_map[title_lower] = r["runtime_mins"] or FALLBACK_EPISODE_MINS
+
+    # Count genres once per deduplicated title
+    for title_lower, (s, rt, genre, is_fav) in movie_best.items():
+        in_library = is_fav or s in ("watchlist", "watching", "finished")
+        if in_library and genre and genre != "Unknown":
+            for g_name in genre.split(","):
                 g_name = g_name.strip()
                 if g_name:
                     genre_freq[g_name] = genre_freq.get(g_name, 0) + 1
-        if ct == "movie":
-            movies_in_library += 1
-            if status == "finished":
-                finished_movies_list.append(r)
-                movies_finished += 1
-                movie_mins += r["runtime_mins"] or FALLBACK_MOVIE_MINS
-            elif status == "watching":
-                movies_watching += 1
-        elif ct == "tv":
-            if status == "finished":
-                tv_finished += 1
-            elif status == "watching":
-                tv_watching += 1
-            tv_runtime_map[r["title"].lower()] = (
-                r["runtime_mins"] or FALLBACK_EPISODE_MINS
-            )
+    for title_lower, (s, genre, is_fav) in tv_best.items():
+        in_library = is_fav or s in ("watchlist", "watching", "finished")
+        if in_library and genre and genre != "Unknown":
+            for g_name in genre.split(","):
+                g_name = g_name.strip()
+                if g_name:
+                    genre_freq[g_name] = genre_freq.get(g_name, 0) + 1
 
-    movies_finished = len(finished_movies_list)
+    movies_in_library = sum(
+        1 for s, _, _g, _f in movie_best.values() if s != "not-started"
+    )
+    movies_finished = 0
+    movies_watching = 0
+    for title_lower, (s, rt, _g, _f) in movie_best.items():
+        if s == "finished":
+            movies_finished += 1
+            movie_mins += rt or FALLBACK_MOVIE_MINS
+        elif s == "watching":
+            movies_watching += 1
+
+    tv_finished = sum(1 for s, _g, _f in tv_best.values() if s == "finished")
+    tv_watching = sum(1 for s, _g, _f in tv_best.values() if s == "watching")
 
     season_rows = db.execute(
         "SELECT title, ep_mask, runtime_mins FROM watched_seasons WHERE user_id=?",

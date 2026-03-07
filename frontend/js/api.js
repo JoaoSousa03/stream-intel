@@ -4,10 +4,19 @@ const GENRE_NAMES = {
   'crm':'Crime','doc':'Documentary','drm':'Drama','eur':'European','fnt':'Fantasy',
   'fml':'Family','hst':'History','hrr':'Horror','kds':'Kids & Family',
   'msc':'Music & Musical','mys':'Mystery & Thriller','trl':'Thriller','nws':'News',
-  'ppl':'People & Celebrities','rlt':'Reality TV','rmn':'Romance','scf':'Science Fiction',
+  'ppl':'People & Celebrities','rlt':'Reality TV','rly':'Reality TV','rmn':'Romance','rma':'Romance','scf':'Science Fiction',
   'spt':'Sport','war':'War & Military','wsn':'Western','tv':'TV Movie',
 };
 function formatGenre(c) { const t=c.trim(); return GENRE_NAMES[t.toLowerCase()]||t; }
+const GENRE_EMOJI = {
+  'action & adventure':'⚔️','animation':'🎨','comedy':'😄','crime':'🔫',
+  'documentary':'📽️','drama':'🎭','european':'🌍','fantasy':'🧙',
+  'family':'👨\u200d👩\u200d👧','history':'📜','horror':'👻','kids & family':'🧸',
+  'music & musical':'🎵','mystery & thriller':'🕵️','thriller':'🗡️','news':'📰',
+  'people & celebrities':'⭐','reality tv':'📺','romance':'❤️',
+  'science fiction':'🚀','sport':'🏆','war & military':'🎖️','western':'🤠',
+};
+function genreEmoji(displayName) { return GENRE_EMOJI[displayName.toLowerCase()] || '🎬'; }
 
 // utility functions
 function goHome(){
@@ -22,6 +31,8 @@ function goHome(){
     const tab = document.querySelector('.nav-tab[data-view="all"]');
     if(tab) tab.click();
   }
+  // clear all filters after the view switches
+  if(typeof clearAllFilters === 'function') clearAllFilters();
 }
 
 // ── API layer ────────────────────────────────────────────────────────────────

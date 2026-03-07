@@ -219,20 +219,20 @@
 
       <!-- Library sub-tabs (visible when any library view is active) -->
       <div class="library-sub-bar" id="librarySubBar" style="display:none">
-      <button class="library-sub-tab active" data-lsub="library"   onclick="setView('library',this)">📚 All</button>
-      <button class="library-sub-tab" data-lsub="favourites" onclick="setView('favourites',this)">❤️ Favourites</button>
-      <button class="library-sub-tab" data-lsub="watchlist"  onclick="setView('watchlist',this)">🔖 Watchlist</button>
-      <button class="library-sub-tab" data-lsub="watching"   onclick="setView('watching',this)">▶️ Watching</button>
-      <button class="library-sub-tab" data-lsub="finished"   onclick="setView('finished',this)">✅ Finished</button>
+      <button class="library-sub-tab active" data-lsub="library"   data-short="All"   onclick="setView('library',this)"><span class="sub-emoji">📚</span><span class="sub-label">All</span></button>
+      <button class="library-sub-tab" data-lsub="favourites" data-short="Favs"  onclick="setView('favourites',this)"><span class="sub-emoji">❤️</span><span class="sub-label">Favourites</span></button>
+      <button class="library-sub-tab" data-lsub="watchlist"  data-short="List"  onclick="setView('watchlist',this)"><span class="sub-emoji">🔖</span><span class="sub-label">Watchlist</span></button>
+      <button class="library-sub-tab" data-lsub="watching"   data-short="On"    onclick="setView('watching',this)"><span class="sub-emoji">▶️</span><span class="sub-label">Watching</span></button>
+      <button class="library-sub-tab" data-lsub="finished"   data-short="Done"  onclick="setView('finished',this)"><span class="sub-emoji">✅</span><span class="sub-label">Finished</span></button>
     </div>
 
       <!-- Status filter sub-bar (visible when on All/Movies/TV/Trending views) -->
       <div class="library-sub-bar" id="statusSubBar">
-        <button class="library-sub-tab active" data-sf="all"        onclick="setStatusFilter('all',this)">📚 All</button>
-        <button class="library-sub-tab"        data-sf="favourites" onclick="setStatusFilter('favourites',this)">❤️ Favourites</button>
-        <button class="library-sub-tab"        data-sf="watchlist"  onclick="setStatusFilter('watchlist',this)">🔖 Watchlist</button>
-        <button class="library-sub-tab"        data-sf="watching"   onclick="setStatusFilter('watching',this)">▶️ Watching</button>
-        <button class="library-sub-tab"        data-sf="finished"   onclick="setStatusFilter('finished',this)">✅ Finished</button>
+        <button class="library-sub-tab active" data-sf="all"        data-short="All"   onclick="setStatusFilter('all',this)"><span class="sub-emoji">📚</span><span class="sub-label">All</span></button>
+        <button class="library-sub-tab"        data-sf="favourites" data-short="Favs"  onclick="setStatusFilter('favourites',this)"><span class="sub-emoji">❤️</span><span class="sub-label">Favourites</span></button>
+        <button class="library-sub-tab"        data-sf="watchlist"  data-short="List"  onclick="setStatusFilter('watchlist',this)"><span class="sub-emoji">🔖</span><span class="sub-label">Watchlist</span></button>
+        <button class="library-sub-tab"        data-sf="watching"   data-short="On"    onclick="setStatusFilter('watching',this)"><span class="sub-emoji">▶️</span><span class="sub-label">Watching</span></button>
+        <button class="library-sub-tab"        data-sf="finished"   data-short="Done"  onclick="setStatusFilter('finished',this)"><span class="sub-emoji">✅</span><span class="sub-label">Finished</span></button>
       </div>
 
       <!-- ── Sub-toolbar (filters, shown for content views) ── -->
@@ -347,7 +347,7 @@
 
   <!-- ── Mobile bottom navigation bar ── -->
   <nav class="bottom-nav" id="bottomNav" aria-label="Main navigation">
-    <button class="bottom-nav-btn active" data-bnav="home" onclick="setView('all',this)" aria-label="Home">
+    <button class="bottom-nav-btn active" data-bnav="home" onclick="setView('all',this);clearAllFilters();" aria-label="Home">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="22" height="22">
         <path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V9.5z"/>
         <path d="M9 21V12h6v9"/>
@@ -1124,10 +1124,16 @@
     var stored = localStorage.getItem(STORAGE_KEY);
     // Default: open on desktop, closed on mobile
     var isOpen = stored !== null ? stored === '1' : window.innerWidth > 768;
-    function apply(open, animate) {
+    function apply(open) {
       var panel = document.getElementById('toolbarFilters');
       var btn   = document.getElementById('filterToggleBtn');
       if (!panel || !btn) return;
+      // On mobile, toolbar filters are always hidden — use the filter sheet instead
+      if (window.innerWidth <= 768) {
+        panel.classList.add('filters-hidden');
+        btn.classList.remove('filters-open');
+        return;
+      }
       if (open) {
         panel.classList.remove('filters-hidden');
         btn.classList.add('filters-open');
@@ -1137,6 +1143,11 @@
       }
     }
     window.toggleFilters = function () {
+      // On mobile, open the bottom sheet instead
+      if (window.innerWidth <= 768) {
+        if (typeof window.openFilterSheet === 'function') window.openFilterSheet();
+        return;
+      }
       isOpen = !isOpen;
       localStorage.setItem(STORAGE_KEY, isOpen ? '1' : '0');
       apply(isOpen);
@@ -1155,5 +1166,23 @@
     });
   }
 </script>
+
+<button id="scrollTopBtn" onclick="scrollToTop()" aria-label="Scroll to top">
+  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
+</button>
+
+<!-- Filter bottom sheet (mobile only) -->
+<div id="filterSheetBackdrop" class="filter-sheet-backdrop" onclick="closeFilterSheet()"></div>
+<div id="filterSheet" class="filter-sheet" role="dialog" aria-modal="true" aria-label="Filters">
+  <div class="filter-sheet-handle"></div>
+  <div class="filter-sheet-header">
+    <span class="filter-sheet-title">Filters</span>
+    <button class="filter-sheet-close" onclick="closeFilterSheet()" aria-label="Close filters">✕</button>
+  </div>
+  <div id="filterSheetBody" class="filter-sheet-body"></div>
+  <div class="filter-sheet-footer">
+    <button class="filter-sheet-apply" id="filterSheetApply" onclick="applyFilterSheet()">Apply Filters</button>
+  </div>
+</div>
 </body>
 </html>
