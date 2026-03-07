@@ -658,17 +658,23 @@ def platform_logos():
     rows = db.execute(
         "SELECT platform_key, logo_url FROM platform_logos WHERE expires_at > datetime('now')"
     ).fetchall()
-    cached = {r["platform_key"]: r["logo_url"] for r in rows}
+    cached = {r["platform_key"]: r["logo_url"] for r in rows if r["logo_url"]}
 
-    # Find which platform keys are missing or stale
+    # Find which platform keys are missing or have no logo URL yet
     missing = [k for k in _PLATFORM_PROVIDER_IDS if k not in cached]
 
     if missing:
-        # Fetch full provider list from TMDB and extract logos for our platforms
-        provider_data = _tmdb(
-            "/watch/providers/tv", watch_region="US", language="en-US"
-        )
-        by_id = {p["provider_id"]: p for p in (provider_data.get("results") or [])}
+        # Fetch provider lists from both TV and movie endpoints — some providers
+        # (e.g. Paramount+) only appear in one of the two US lists on TMDB.
+        by_id: dict = {}
+        for media_type in ("tv", "movie"):
+            provider_data = _tmdb(
+                f"/watch/providers/{media_type}", watch_region="US", language="en-US"
+            )
+            for p in (provider_data.get("results") or []):
+                pid = p.get("provider_id")
+                if pid and pid not in by_id:
+                    by_id[pid] = p
 
         for key, pid in _PLATFORM_PROVIDER_IDS.items():
             if key not in cached:
