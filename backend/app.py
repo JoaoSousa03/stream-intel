@@ -9,7 +9,7 @@ import threading
 import time
 from datetime import datetime
 from pathlib import Path
-from flask import Flask, app, send_from_directory, jsonify
+from flask import Flask, send_from_directory, jsonify
 from flask_compress import Compress
 from werkzeug.middleware.proxy_fix import ProxyFix
 from backend.config import settings
@@ -232,6 +232,7 @@ def create_app() -> Flask:
     # Register all blueprints
     for bp in all_blueprints:
         app.register_blueprint(bp)
+    app.register_blueprint(well_known_bp)
 
     # Serve the frontend
     @app.route("/", defaults={"path": ""})
@@ -356,6 +357,3 @@ def create_app() -> Flask:
         return jsonify({"error": "Method not allowed"}), 405
 
     return app
-
-
-app.register_blueprint(well_known_bp)
