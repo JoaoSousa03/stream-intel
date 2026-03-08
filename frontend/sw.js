@@ -5,7 +5,7 @@
 //   - HTML pages                             → Network First, fall back to cached shell
 //   - Web Push notifications                 → showNotification on push event
 
-const CACHE_NAME = 'streamintel-v12';
+const CACHE_NAME = 'streamintel-v13';
 
 // Static assets to pre-cache on install
 const PRECACHE_URLS = [
@@ -117,15 +117,26 @@ self.addEventListener('push', e => {
 
 self.addEventListener('notificationclick', e => {
   e.notification.close();
-  const target = e.notification.data?.url || '/';
+  const rel    = (e.notification.data && e.notification.data.url) || '/';
+  // Must be an absolute URL — Chrome on Android uses it to decide whether to
+  // open the installed PWA (standalone) or a new browser tab. A relative path
+  // is mis-handled and always opens in the browser.
+  const target = rel.startsWith('http') ? rel : (self.location.origin + rel);
+
   e.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
-      for (const c of list) {
-        if (c.url.startsWith(self.location.origin) && 'focus' in c) {
-          c.focus();
-          return;
-        }
+      // Reuse an existing app window: navigate it to the target URL, then focus.
+      // WindowClient.navigate() is the right API here — c.focus() alone does not
+      // change the current page.
+      const existing = list.find(c => c.url.startsWith(self.location.origin));
+      if (existing) {
+        const p = ('navigate' in existing)
+          ? existing.navigate(target).then(wc => wc && wc.focus())
+          : Promise.resolve(existing.focus());
+        return p;
       }
+      // No existing window — open a new one. On Android Chrome, openWindow with
+      // an in-scope absolute URL opens inside the installed PWA, not the browser.
       return clients.openWindow(target);
     })
   );
