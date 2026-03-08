@@ -437,18 +437,35 @@ function runEnrich() {
   const btn = document.getElementById('enrichBtn');
   btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>Enriching…';
   clearLog();
-  appendLog('Connecting to TMDB enrichment…', '');
-  const es = new EventSource('/api/enrich');
-  es.onmessage = e => {
-    if (e.data === '__DONE__') {
-      es.close(); btn.disabled=false; btn.textContent='Enrich Only';
-      appendLog('Enrichment complete! Refreshing…','ok');
-      setTimeout(() => loadTitles(), 800);
-    } else {
-      appendLog(e.data, e.data.includes('ERROR')?'err': e.data.includes('complete')||e.data.includes('enriched')?'ok':'');
+  appendLog('Starting TMDB enrichment in background…', '');
+
+  api('POST', '/api/enrich').then(data => {
+    if (!data || !data.started) {
+      appendLog(data?.message || 'Could not start enrichment.', 'err');
+      btn.disabled = false; btn.textContent = 'Enrich Only';
+      return;
     }
-  };
-  es.onerror = () => { es.close(); btn.disabled=false; btn.textContent='Enrich Only'; appendLog('Connection lost.','err'); };
+    appendLog('Enrichment running — this may take several minutes…', '');
+    let _lastLogLen = 0;
+    const _pollInterval = setInterval(async () => {
+      const status = await api('GET', '/api/enrich/status');
+      if (!status) return;
+      // Append any new log lines
+      const newLines = (status.log || []).slice(_lastLogLen);
+      newLines.forEach(line => appendLog(line, line.includes('ERROR') ? 'err' : line.includes('complete') || line.includes('enriched') ? 'ok' : ''));
+      _lastLogLen = (status.log || []).length;
+      if (status.done) {
+        clearInterval(_pollInterval);
+        btn.disabled = false; btn.textContent = 'Enrich Only';
+        if (status.error) {
+          appendLog('Enrichment failed: ' + status.error, 'err');
+        } else {
+          appendLog('Enrichment complete! Refreshing…', 'ok');
+          setTimeout(() => loadTitles(), 800);
+        }
+      }
+    }, 3000);
+  });
 }
 
 async function importJson() {

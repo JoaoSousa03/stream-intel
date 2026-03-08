@@ -5,7 +5,7 @@
 //   - HTML pages                             → Network First, fall back to cached shell
 //   - Web Push notifications                 → showNotification on push event
 
-const CACHE_NAME = 'streamintel-v4';
+const CACHE_NAME = 'streamintel-v5';
 
 // Static assets to pre-cache on install
 const PRECACHE_URLS = [

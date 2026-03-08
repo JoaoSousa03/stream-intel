@@ -190,66 +190,86 @@ def run_scraper(mode: str, regions: str):
     )
 
 
-@bp.route("/enrich")
+# ── Background enrichment job state ──────────────────────────────────────────
+_enrich_lock = threading.Lock()
+_enrich_state = {
+    "running": False,
+    "done": False,
+    "error": None,
+    "log": [],       # list of recent log lines (capped at 500)
+}
+
+
+@bp.route("/enrich", methods=["POST"])
 @require_auth
 def run_enrich():
     """
-    Run TMDB enrichment on the existing DB without re-scraping.
-    Streams log output as SSE so the UI can show progress live.
+    Start TMDB enrichment in a background thread. Returns immediately.
+    Poll /api/enrich/status for progress.
     """
-    _script = str(Path(__file__).parent.parent / "scraper" / "enrich_only.py")
-    cmd = [sys.executable, _script, "--db", str(settings.DB_PATH)]
+    _, err = _require_admin()
+    if err:
+        return err
 
-    def generate():
-        yield "data: Starting TMDB enrichment…\n\n"
+    with _enrich_lock:
+        if _enrich_state["running"]:
+            return jsonify({"started": False, "message": "Enrichment already running"}), 409
+        _enrich_state["running"] = True
+        _enrich_state["done"] = False
+        _enrich_state["error"] = None
+        _enrich_state["log"] = ["Starting TMDB enrichment…"]
+
+    def _run():
+        import logging
+        from backend.scraper.enricher import enrich_from_db
+
+        class _ListHandler(logging.Handler):
+            def emit(self, record):
+                line = self.format(record)
+                with _enrich_lock:
+                    _enrich_state["log"].append(line)
+                    if len(_enrich_state["log"]) > 500:
+                        _enrich_state["log"] = _enrich_state["log"][-500:]
+
+        handler = _ListHandler()
+        handler.setFormatter(logging.Formatter("%(message)s"))
+        enrich_logger = logging.getLogger("Scraper.Enricher")
+        enrich_logger.addHandler(handler)
         try:
-            clean_env = os.environ.copy()
-            base_str = str(settings.BASE_DIR)
-            existing_pp = clean_env.get("PYTHONPATH", "")
-            clean_env["PYTHONPATH"] = (
-                f"{base_str}{os.pathsep}{existing_pp}" if existing_pp else base_str
-            )
-
-            proc = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                bufsize=1,
-                env=clean_env,
-                cwd=str(settings.BASE_DIR),
-            )
-
-            msg_q = _queue.Queue()
-            def _reader(p, q):
-                for ln in p.stdout:
-                    q.put(ln.rstrip())
-                q.put(None)
-            threading.Thread(target=_reader, args=(proc, msg_q), daemon=True).start()
-
-            while True:
-                try:
-                    line = msg_q.get(timeout=20)
-                except _queue.Empty:
-                    yield ": ping\n\n"
-                    continue
-                if line is None:
-                    break
-                if line:
-                    yield f"data: {line}\n\n"
-
-            proc.wait()
+            api_key = os.getenv("TMDB_API_KEY")
+            if not api_key:
+                raise RuntimeError("No TMDB_API_KEY set")
+            enrich_from_db(settings.DB_PATH, api_key=api_key)
+            with _enrich_lock:
+                _enrich_state["log"].append("Enrichment complete.")
         except Exception as e:
-            yield f"data: ERROR: {e}\n\n"
-        yield "data: __DONE__\n\n"
+            with _enrich_lock:
+                _enrich_state["error"] = str(e)
+                _enrich_state["log"].append(f"ERROR: {e}")
+        finally:
+            enrich_logger.removeHandler(handler)
+            with _enrich_lock:
+                _enrich_state["running"] = False
+                _enrich_state["done"] = True
 
-    return Response(
-        stream_with_context(generate()),
-        mimetype="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-    )
+    threading.Thread(target=_run, daemon=True).start()
+    return jsonify({"started": True})
+
+
+@bp.route("/enrich/status")
+@require_auth
+def enrich_status():
+    """Poll for background enrichment progress."""
+    _, err = _require_admin()
+    if err:
+        return err
+    with _enrich_lock:
+        return jsonify({
+            "running": _enrich_state["running"],
+            "done": _enrich_state["done"],
+            "error": _enrich_state["error"],
+            "log": list(_enrich_state["log"]),
+        })
 
 
 @bp.route("/import-json", methods=["POST"])
