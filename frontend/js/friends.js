@@ -149,30 +149,31 @@ async function _initPush() {
     // Convert base64url to Uint8Array for applicationServerKey
     const keyBytes = _b64urlToUint8(publicKey);
 
-    // If the public key changed since last subscription, force a fresh one.
-    // This handles VAPID key rotation — old subs are tied to the old key.
-    const storedKey = localStorage.getItem('vapid_pub_key');
     let sub = await reg.pushManager.getSubscription();
-    if (sub && storedKey !== publicKey) {
-      console.log('[push] VAPID key rotated — unsubscribing old subscription');
-      await sub.unsubscribe();
-      sub = null;
+
+    // Handle VAPID key rotation: compare the key embedded in the existing
+    // subscription directly (sub.options.applicationServerKey) rather than
+    // relying on localStorage. localStorage is unreliable in TWA ephemeral
+    // mode and is cleared between sessions, causing a false key-mismatch that
+    // unsubscribes a perfectly valid subscription every cold start.
+    if (sub && sub.options && sub.options.applicationServerKey) {
+      const existingKey = btoa(String.fromCharCode(...new Uint8Array(sub.options.applicationServerKey)))
+        .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+      if (existingKey !== publicKey) {
+        console.log('[push] VAPID key rotated — unsubscribing old subscription');
+        await sub.unsubscribe();
+        sub = null;
+      }
     }
 
     if (!sub) {
-      // NOTE: On Android 13+ TWA, if Notification.permission is reported as
-      // 'default' (which happens when assetlinks verification fails and Chrome
-      // runs in ephemeral/unverified mode), subscribe() will show the OS
-      // POST_NOTIFICATIONS dialog. The fix is ensuring the assetlinks.json
-      // SHA256 fingerprint matches the actual APK signing key.
-      // Do NOT call Notification.requestPermission() here — subscribe() already
-      // handles permission internally, and calling both causes two OS dialogs.
       sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: keyBytes,
       });
     }
-    // Send subscription to backend
+
+    // Send subscription to backend (re-sync on every init to handle endpoint refresh)
     const result = await api('POST', '/api/push/subscribe', sub.toJSON());
     if (result?.ok) {
       localStorage.setItem('vapid_pub_key', publicKey);
