@@ -502,6 +502,32 @@ function appendLog(msg, cls='') {
 }
 function clearLog() { document.getElementById('log').innerHTML=''; }
 
+// ── Mobile header title dropdown ──────────────────────────────────────────────
+function _toggleMptDropdown(e) {
+  e.stopPropagation();
+  const trigger = document.getElementById('mptTrigger');
+  if (trigger.classList.contains('no-arrow')) return;
+  const dd = document.getElementById('mptDropdown');
+  const open = dd.classList.contains('hidden');
+  dd.classList.toggle('hidden', !open);
+  trigger.classList.toggle('open', open);
+}
+function _mptSelect(view) {
+  document.getElementById('mptDropdown').classList.add('hidden');
+  document.getElementById('mptTrigger').classList.remove('open');
+  const tab = document.querySelector(`.nav-tab[data-view="${view}"]`);
+  setView(view, tab || null);
+}
+document.addEventListener('click', () => {
+  const dd = document.getElementById('mptDropdown');
+  if (dd && !dd.classList.contains('hidden')) {
+    dd.classList.add('hidden');
+    document.getElementById('mptTrigger')?.classList.remove('open');
+  }
+});
+window._toggleMptDropdown = _toggleMptDropdown;
+window._mptSelect = _mptSelect;
+
 // ── View / tab management ─────────────────────────────────────────────────────
 const CONTENT_VIEWS = new Set(['all','movie','tv','trending','favourites','watchlist','watching','finished','library']);
 let _lastLibraryView = 'library';
@@ -566,12 +592,21 @@ function setView(view, el, contentTypeFilter) {
       statusSubBar.querySelectorAll('.library-sub-tab').forEach(t => t.classList.toggle('active', t.dataset.sf === 'all'));
     }
   }
-  // Mobile page title
-  const _mpt = document.getElementById('mobilePageTitle');
+  // Mobile page title + optional content-type dropdown
+  const _mpt = document.getElementById('mptLabel');
   if (_mpt) {
     const _PAGE_TITLES = { library: '📚 Library' };
     const _di = document.querySelector(`.nav-drawer-item[data-view="${view}"]`);
-    _mpt.textContent = (_PAGE_TITLES[view] || (_di && _di.textContent.trim()) || '');
+    const _label = _PAGE_TITLES[view] || (_di && _di.textContent.trim()) || '';
+    _mpt.textContent = _label;
+    // Show chevron only on content views that have a type sub-filter
+    const _trigger = document.getElementById('mptTrigger');
+    const _showArrow = view === 'all' || view === 'movie' || view === 'tv';
+    if (_trigger) _trigger.classList.toggle('no-arrow', !_showArrow);
+    // Highlight active option in dropdown
+    document.querySelectorAll('.mpt-dropdown button[data-mpt]').forEach(b => {
+      b.classList.toggle('active', b.dataset.mpt === view);
+    });
   }
 
   const isContent = CONTENT_VIEWS.has(view);
