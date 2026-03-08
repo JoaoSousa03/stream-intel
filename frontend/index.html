@@ -167,11 +167,6 @@
           <span id="mptLabel">All Titles</span>
           <svg id="mptChevron" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
         </button>
-        <div class="mpt-dropdown hidden" id="mptDropdown">
-          <button onclick="_mptSelect('all')" data-mpt="all">All Titles</button>
-          <button onclick="_mptSelect('movie')" data-mpt="movie">Movies</button>
-          <button onclick="_mptSelect('tv')" data-mpt="tv">TV Shows</button>
-        </div>
       </div>
 
       <div class="header-right">
@@ -1051,6 +1046,13 @@
       <button class="share-skip-btn" onclick="dismissSharePrompt()">Skip</button>
     </div>
   </div>
+</div>
+
+<!-- ── Mobile page-title dropdown (body-level — must live outside backdrop-filter ancestor) ── -->
+<div class="mpt-dropdown hidden" id="mptDropdown">
+  <button onclick="_mptSelect('all')" data-mpt="all">All Titles</button>
+  <button onclick="_mptSelect('movie')" data-mpt="movie">Movies</button>
+  <button onclick="_mptSelect('tv')" data-mpt="tv">TV Shows</button>
 </div>
 
 <!-- ── Notifications panel (body-level — must live outside backdrop-filter ancestor) ── -->
