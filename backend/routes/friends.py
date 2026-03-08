@@ -325,20 +325,21 @@ def _send_push_async(user_id: int, payload: dict):
 
     def _run():
         import sys
+        import sqlite3
+        import json as _json
 
         try:
+            from backend.config import settings
             from pywebpush import webpush, WebPushException
             from py_vapid import Vapid01
-            vapid_obj = Vapid01.from_pem(settings.VAPID_PRIVATE_PEM.encode("utf-8"))
-            from backend.config import settings
-            import sqlite3
-            import json as _json
 
             if not settings.VAPID_PRIVATE_PEM:
                 print(
                     "[push] VAPID_PRIVATE_PEM not set — skipping push", file=sys.stderr
                 )
                 return
+
+            vapid_obj = Vapid01.from_pem(settings.VAPID_PRIVATE_PEM.encode("utf-8"))
 
             db_path = str(settings.DB_PATH)
             conn = sqlite3.connect(db_path)
