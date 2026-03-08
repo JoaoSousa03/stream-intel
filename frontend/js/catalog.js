@@ -1624,7 +1624,7 @@ function renderCard(t, i) {
           <span class="type-tag ${t.content_type}">${t.content_type==='movie'?'🎬 MOVIE':t.content_type==='tv'?'📺 TV':t.content_type||'?'}</span>
           <span class="year-text" id="yeartext-${CSS.escape(tk)}">${_tvYearDisplay(t)}</span>
         </div>
-        ${t.content_type==='tv'&&t.num_seasons>0?`<div class="card-seasons">${t.num_seasons} season${t.num_seasons!==1?'s':''}</div>`:''}
+        ${t.content_type==='tv'&&t.num_seasons>0?`<div class="card-seasons">${t.num_seasons} season${t.num_seasons!==1?'s':''}</div>`:t.content_type==='movie'&&t.runtime_mins>0?`<div class="card-seasons">${t.runtime_mins} min</div>`:''}
         ${(imdb||rt||t.maturity_rating)?`<div class="card-scores">${imdb}${rt}${t.maturity_rating?`<span class="rating-tag">${t.maturity_rating}</span>`:''}</div>`:''}
         ${genres?`<div class="genres">${genres}</div>`:''}
         ${platformBadgesHtml}
