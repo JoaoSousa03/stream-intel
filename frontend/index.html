@@ -211,6 +211,7 @@
         <button class="nav-tab"        data-view="movie"      onclick="setView('movie',this)">🎬 Movies</button>
         <button class="nav-tab"        data-view="tv"         onclick="setView('tv',this)">📺 TV</button>
         <button class="nav-tab"        data-view="trending"   onclick="setView('trending',this)">🔥 Trending</button>
+        <button class="nav-tab"        data-view="foryou"    onclick="setView('foryou',this)">✨ For You</button>
         <button class="nav-tab"        data-view="discover"   onclick="setView('discover',this)">🧭 Discover</button>
         <button class="nav-tab"        data-view="upcoming"  onclick="setView('upcoming',this)">📅 Upcoming</button>
         <button class="nav-tab"        data-view="actors"    onclick="setView('actors',this)">🎭 Actors</button>
@@ -259,6 +260,11 @@
           <button class="trend-type-btn"        data-type="movie"  onclick="setTrendingTypeFilter('movie')">Movies</button>
           <button class="trend-type-btn"        data-type="tv"     onclick="setTrendingTypeFilter('tv')">TV</button>
         </div>
+        <div class="trend-type-toggle" id="ongoingFilter" style="display:none">
+          <button class="trend-type-btn active" data-ongoing="all"     onclick="setOngoingFilter('all')">All</button>
+          <button class="trend-type-btn"        data-ongoing="ongoing" onclick="setOngoingFilter('ongoing')">Ongoing</button>
+          <button class="trend-type-btn"        data-ongoing="ended"   onclick="setOngoingFilter('ended')">Ended</button>
+        </div>
         <div class="genre-dropdown" id="genreDropdown">
           <button class="sort-select genre-dropdown-btn" id="genreDropdownBtn" onclick="toggleGenreDropdown(event)">All Genres ▾</button>
           <div class="genre-dropdown-menu" id="genreDropdownMenu"></div>
@@ -302,6 +308,11 @@
       </div>
     </div>
     <div class="pagination" id="pagination" style="display:none"></div>
+
+    <!-- ── For You panel ── -->
+    <div id="forYouPanel" style="display:none">
+      <div class="discover-wrap" id="forYouWrap"></div>
+    </div>
 
     <!-- ── Discover panel ── -->
     <div id="discoverPanel" style="display:none">
@@ -787,6 +798,7 @@
     <button class="nav-drawer-item"        data-view="movie"      onclick="setView('movie',this);closeNavDrawer()">🎬 Movies</button>
     <button class="nav-drawer-item"        data-view="tv"         onclick="setView('tv',this);closeNavDrawer()">📺 TV Shows</button>
     <button class="nav-drawer-item"        data-view="trending"   onclick="setView('trending',this);closeNavDrawer()">🔥 Trending</button>
+    <button class="nav-drawer-item"        data-view="foryou"    onclick="setView('foryou',this);closeNavDrawer()">✦ For You</button>
     <button class="nav-drawer-item"        data-view="discover"   onclick="setView('discover',this);closeNavDrawer()">🧭 Discover</button>
     <div class="nav-drawer-divider"></div>
     <button class="nav-drawer-item"        data-view="favourites" onclick="setView('favourites',this);closeNavDrawer()">❤️ Favourites</button>
@@ -805,6 +817,28 @@
     </button>
   </div>
 </nav>
+
+<!-- ── For You section detail overlay ── -->
+<div class="ep-detail-overlay" id="forYouDetailOverlay">
+  <div class="detail-back-bar">
+    <button class="detail-back-btn" onclick="closeForYouSection()">← Back</button>
+    <span class="detail-back-crumb" id="forYouDetailCrumb"></span>
+  </div>
+  <div class="ep-detail-scroll" id="forYouDetailScroll">
+    <div class="foryou-detail-grid" id="forYouDetailGrid"></div>
+  </div>
+</div>
+
+<!-- ── Discover section detail overlay ── -->
+<div class="ep-detail-overlay" id="discoverDetailOverlay">
+  <div class="detail-back-bar">
+    <button class="detail-back-btn" onclick="closeDiscoverSection()">← Back</button>
+    <span class="detail-back-crumb" id="discoverDetailCrumb"></span>
+  </div>
+  <div class="ep-detail-scroll" id="discoverDetailScroll">
+    <div class="foryou-detail-grid" id="discoverDetailGrid"></div>
+  </div>
+</div>
 
 <!-- ── Episode detail overlay ── -->
 <div class="ep-detail-overlay" id="epDetailOverlay">

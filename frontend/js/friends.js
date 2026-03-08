@@ -1087,6 +1087,7 @@ function openNotifDetail(n) {
   const overlay = document.getElementById('notifDetailOverlay');
   const content = document.getElementById('notifDetailContent');
   if (!overlay || !content) return;
+  if (!_handlingPop) history.pushState({ modal: 'notifDetail' }, '');
 
   const p    = n.payload || {};
   const time = _relTime(n.created_at);
@@ -1121,7 +1122,7 @@ function openNotifDetail(n) {
     const imdb     = p.imdb_score   || stored.imdb_score   || null;
     const rt       = p.tomatometer  || stored.tomatometer  || null;
     html += `
-      <div class="nd-title-block" onclick="closeNotifDetail();setTimeout(()=>openModal('${escHtml(tk)}'),50)" style="cursor:pointer" title="Open title">
+      <div class="nd-title-block" onclick="openModal('${escHtml(tk)}')" style="cursor:pointer" title="Open title">
         ${meta ? `<div class="nd-meta">${escHtml(meta)}</div>` : ''}
         <div class="nd-title">${escHtml(p.title)}${escHtml(year)}</div>
         <div class="nd-scores">

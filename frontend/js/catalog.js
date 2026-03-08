@@ -67,6 +67,7 @@ let excludedGenres    = new Set();
 let activeVotes       = 0;      // minimum IMDb vote count filter
 let activeSort        = 'rank'; // current sort key
 let activeContentTypeFilter = null; // 'movie' | 'tv' | null — secondary type filter (used when navigating from profile stats)
+let activeOngoingFilter = 'all'; // 'all' | 'ongoing' | 'ended' — TV only
 let allKnownRegions   = [];          // populated on first full load; preserved when region filter active
 let currentModalTitle = null;
 // Use titleKey as stable ID so cardDataStore never grows unbounded
@@ -86,6 +87,7 @@ async function syncLibrary(t, patch, opts={}) {
   const entry  = getEntry(t);
   const merged = {...entry, ...patch};
   libraryMap[titleKey(t)] = merged;
+  _forYouDirty = true; // library change invalidates recommendations
   await api('POST', '/api/library', {
     platform: t.platform, title: t.title,
     is_fav: merged.is_fav, status: merged.status, notes: merged.notes,
@@ -383,6 +385,7 @@ async function loadTitles() {
     _statsDirty    = true;
     const _activeView = document.querySelector('.nav-tab.active, .nav-drawer-item.active')?.dataset?.view;
     if (_activeView === 'discover') { renderDiscover(); _discoverDirty = false; }
+    if (_activeView === 'foryou')   { renderForYou();   _forYouDirty   = false; }
     if (_activeView === 'stats')    { renderStatsPanel(); _statsDirty = false; }
 
     const regionCount = data.region_count || allKnownRegions.length || 0;
@@ -503,12 +506,15 @@ function clearLog() { document.getElementById('log').innerHTML=''; }
 const CONTENT_VIEWS = new Set(['all','movie','tv','trending','favourites','watchlist','watching','finished','library']);
 let _lastLibraryView = 'library';
 function gotoLibrary() { setView(_lastLibraryView, null); }
-const SPECIAL_VIEWS = new Set(['discover','stats','upcoming','actors']);
+const SPECIAL_VIEWS = new Set(['discover','stats','upcoming','actors','foryou']);
 
 // Cache for rendered discover/stats so we don't re-compute on every tab click
 let _discoverDirty  = true;
 let _statsDirty     = true;
 let _upcomingDirty  = true;
+let _forYouDirty    = true;
+let _forYouSections    = []; // stores built sections for see-more navigation (For You)
+let _discoverSections  = []; // stores built sections for see-more navigation (Discover)
 
 // ── Actors panel state ────────────────────────────────────────────────────────────
 let _actorCategory   = 'trending'; // 'trending' | 'popular'
@@ -536,7 +542,7 @@ function setView(view, el, contentTypeFilter) {
   const _bnvMap = { all:'home', movie:'home', tv:'home',
                     trending:'trending',
                     library:'library', watchlist:'library', watching:'library', finished:'library', favourites:'library',
-                    discover:'more', upcoming:'more', actors:'more', stats:'more' };
+                    discover:'more', foryou:'more', upcoming:'more', actors:'more', stats:'more' };
   document.querySelectorAll('.bottom-nav-btn[data-bnav]').forEach(b => {
     b.classList.toggle('active', b.dataset.bnav === (_bnvMap[view] || 'home'));
   });
@@ -573,11 +579,13 @@ function setView(view, el, contentTypeFilter) {
   document.getElementById('gridWrap').style.display      = isContent ? '' : 'none';
   document.getElementById('pagination').style.display    = 'none';
   document.getElementById('discoverPanel').style.display = view==='discover' ? '' : 'none';
+  document.getElementById('forYouPanel').style.display   = view==='foryou'   ? '' : 'none';
   document.getElementById('statsPanel').style.display    = view==='stats'    ? '' : 'none';
   document.getElementById('upcomingPanel').style.display = view==='upcoming' ? '' : 'none';
   document.getElementById('actorsPanel').style.display   = view==='actors'   ? '' : 'none';
 
   if (view === 'discover') { if (_discoverDirty) { renderDiscover(); _discoverDirty=false; } return; }
+  if (view === 'foryou')   { if (_forYouDirty)   { renderForYou();   _forYouDirty=false;   } return; }
   if (view === 'stats')    { if (_statsDirty)    { renderStatsPanel(); _statsDirty=false; } return; }
   if (view === 'upcoming') { if (_upcomingDirty) { renderUpcoming(); } return; }
   if (view === 'actors')   { renderActorsPanel(); return; }
@@ -591,6 +599,10 @@ function setView(view, el, contentTypeFilter) {
   const trendingTypeDd = document.getElementById('trendingTypeFilter');
   if (trendingTypeDd) trendingTypeDd.style.display = (view === 'trending') ? '' : 'none';
   if (view !== 'trending') { trendingContentType = 'all'; _syncTrendingTypeBtns(); }
+  // Show ongoing/ended filter only on the TV tab
+  const ongoingDd = document.getElementById('ongoingFilter');
+  if (ongoingDd) ongoingDd.style.display = (view === 'tv') ? '' : 'none';
+  if (view !== 'tv' && activeOngoingFilter !== 'all') { activeOngoingFilter = 'all'; _syncOngoingFilterBtns(); }
 
   // Trending needs server reload (?trending=1 + region); other tabs are client-side
   if (view === 'trending' || wasTrending) {
@@ -627,6 +639,20 @@ function _syncTrendingTypeBtns() {
   });
 }
 
+function setOngoingFilter(val) {
+  activeOngoingFilter = val;
+  _syncOngoingFilterBtns();
+  applyFilters();
+}
+window.setOngoingFilter = setOngoingFilter;
+window.loadApp = loadApp;
+
+function _syncOngoingFilterBtns() {
+  document.querySelectorAll('#ongoingFilter .trend-type-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.ongoing === activeOngoingFilter);
+  });
+}
+
 // ── Discover view ─────────────────────────────────────────────────────────────
 function renderDiscover() {
   const wrap = document.getElementById('discoverWrap');
@@ -643,26 +669,32 @@ function renderDiscover() {
   }
 
   const sections = [
-    { title: 'Top Rated by IMDb',            score: t => t.imdb_score  || 0, fmt: s => s.toFixed(1),  label: 'IMDb',  min: t => (t.imdb_votes||0) >= 10000 },
-    { title: 'Top Rated by Rotten Tomatoes', score: t => t.tomatometer || 0, fmt: s => s + '%',        label: 'RT',    min: t => (t.tomatometer||0) > 0 },
-    { title: 'Top Rated Movies',             score: t => t.imdb_score  || 0, fmt: s => s.toFixed(1),  label: 'IMDb',  min: t => t.content_type==='movie' && (t.imdb_votes||0) >= 10000 },
-    { title: 'Top Rated TV Shows',           score: t => t.imdb_score  || 0, fmt: s => s.toFixed(1),  label: 'IMDb',  min: t => t.content_type==='tv' && (t.imdb_votes||0) >= 10000 },
-    { title: 'Newest Releases',              score: t => parseInt(t.release_year)||0, fmt: s => String(s), label: 'Year', min: t => (parseInt(t.release_year)||0) > 2010 },
-    { title: 'Most Voted',                   score: t => t.imdb_votes  || 0, fmt: s => fmtVotes(s),   label: 'Votes', min: () => true },
+    { title: '🏆 Top Rated by IMDb',            score: t => t.imdb_score  || 0, fmt: s => s.toFixed(1),  label: 'IMDb',  min: t => (t.imdb_votes||0) >= 10000 },
+    { title: '🍅 Top Rated by Rotten Tomatoes', score: t => t.tomatometer || 0, fmt: s => s + '%',        label: 'RT',    min: t => (t.tomatometer||0) > 0 },
+    { title: '🎬 Top Rated Movies',             score: t => t.imdb_score  || 0, fmt: s => s.toFixed(1),  label: 'IMDb',  min: t => t.content_type==='movie' && (t.imdb_votes||0) >= 10000 },
+    { title: '📺 Top Rated TV Shows',           score: t => t.imdb_score  || 0, fmt: s => s.toFixed(1),  label: 'IMDb',  min: t => t.content_type==='tv' && (t.imdb_votes||0) >= 10000 },
+    { title: '🆕 Newest Releases',              score: t => parseInt(t.release_year)||0, fmt: s => String(s), label: 'Year', min: t => (parseInt(t.release_year)||0) > 2010 },
+    { title: '🔥 Most Voted',                   score: t => t.imdb_votes  || 0, fmt: s => fmtVotes(s),   label: 'Votes', min: () => true },
   ];
 
+  const DISC_PREVIEW = 8;
+  _discoverSections = [];
   const allDiscoverItems = [];
 
   wrap.innerHTML = sections.map(sec => {
-    const items = allTitles.filter(sec.min).sort((a,b) => sec.score(b)-sec.score(a)).slice(0,10);
-    if (!items.length) return '';
-    items.forEach(t => allDiscoverItems.push(t));
+    const allItems = allTitles.filter(sec.min).sort((a,b) => sec.score(b)-sec.score(a)).slice(0, 50);
+    if (!allItems.length) return '';
+    _discoverSections.push({ title: sec.title, all: allItems });
+    const secIdx = _discoverSections.length - 1;
+    const previewItems = allItems.slice(0, DISC_PREVIEW);
+    previewItems.forEach(t => allDiscoverItems.push(t));
+    const more = allItems.length > DISC_PREVIEW;
 
     return `
       <div class="discover-section">
         <div class="discover-section-title">${sec.title}</div>
         <div class="discover-row">
-          ${items.map((t, i) => {
+          ${previewItems.map((t, i) => {
             const tk     = titleKey(t);
             const ck     = cardKey(t);
             const tkAttr = escAttr(tk);
@@ -699,11 +731,32 @@ function renderDiscover() {
               </div>`;
           }).join('')}
         </div>
+        ${more ? `<button class="foryou-see-more" onclick="openDiscoverSection(${secIdx})">See all ${allItems.length} titles →</button>` : ''}
       </div>`;
   }).join('');
 
   _loadDiscoverPosters(allDiscoverItems);
 }
+
+function openDiscoverSection(idx) {
+  const sec = _discoverSections[idx];
+  if (!sec) return;
+  const overlay = document.getElementById('discoverDetailOverlay');
+  const crumb   = document.getElementById('discoverDetailCrumb');
+  const grid    = document.getElementById('discoverDetailGrid');
+  if (!overlay || !grid) return;
+  if (!_handlingPop) history.pushState({ overlay: 'discoverSection' }, '');
+  crumb.textContent = sec.title;
+  grid.innerHTML = sec.all.map(_forYouCard).join('');
+  overlay.classList.add('open');
+  _loadDiscoverPosters(sec.all);
+}
+window.openDiscoverSection = openDiscoverSection;
+
+function closeDiscoverSection() {
+  document.getElementById('discoverDetailOverlay')?.classList.remove('open');
+}
+window.closeDiscoverSection = closeDiscoverSection;
 
 async function _loadDiscoverPosters(items) {
   // Deduplicate by titleKey so we only fetch each poster once,
@@ -731,6 +784,149 @@ async function _loadDiscoverPosters(items) {
     });
   }
 }
+
+// ── For You recommendations ───────────────────────────────────────────────────
+function _forYouCard(t) {
+  const tk      = titleKey(t);
+  const tkAttr  = escAttr(tk);
+  const tkJs    = jsEsc(tk);
+  const plist   = (t.platforms || t.platform || '').split(',').map(p => p.trim()).filter(Boolean);
+  const platHtml = plist.length
+    ? `<div class="platform-badges">${plist.slice(0,3).map(p => `<span class="platform-badge ${p}" title="${formatPlatform(p)}">${platLogo(p)}</span>`).join('')}${plist.length>3?`<span class="platform-badge plat-overflow">+${plist.length-3}</span>`:''}</div>`
+    : '';
+  const imdbHtml = t.imdb_score
+    ? `<div class="card-scores"><div class="score-block"><div class="score-label">${_imdbStarSvg(11)} IMDb</div><div class="score-value imdb">${t.imdb_score.toFixed(1)}</div></div></div>`
+    : '';
+  return `
+    <div class="card" data-tk="${tkAttr}" onclick="openModal('${tkJs}')">
+      <div class="card-poster" data-disc-tk="${tkAttr}">
+        <div class="card-poster-placeholder"><div class="ph-icon">${t.content_type==='movie'?'🎬':'📺'}</div><div class="ph-title">${escHtml(t.title)}</div></div>
+        <div class="card-poster-overlay"><div class="poster-top"></div><div class="poster-bottom"></div></div>
+      </div>
+      <div class="card-body">
+        <div class="card-title">${escHtml(t.title)}</div>
+        <div class="card-sub">
+          <span class="type-tag ${t.content_type}">${t.content_type==='movie'?'🎬 MOVIE':t.content_type==='tv'?'📺 TV':t.content_type||'?'}</span>
+          <span class="year-text">${t.release_year||'—'}</span>
+        </div>
+        ${imdbHtml}${platHtml}
+      </div>
+    </div>`;
+}
+
+function renderForYou() {
+  const wrap = document.getElementById('forYouWrap');
+  if (!wrap) return;
+  if (!allTitles.length) {
+    wrap.innerHTML = `<div class="empty"><div class="empty-icon" style="font-size:0"><span class="spinner" style="width:36px;height:36px;border-width:3px;margin:0"></span></div><div class="empty-title" style="margin-top:20px">Loading…</div></div>`;
+    return;
+  }
+
+  // Build genre weight map from user's engaged library entries
+  const genreWeights = {};
+  let totalEngaged = 0;
+  for (const t of allTitles) {
+    const entry = getEntry(t);
+    const engaged = entry.status !== 'not-started' || entry.is_fav;
+    if (!engaged) continue;
+    totalEngaged++;
+    let w = 0;
+    if (entry.status === 'finished')  w += 3;
+    if (entry.status === 'watching')  w += 2;
+    if (entry.status === 'watchlist') w += 1.5;
+    if (entry.is_fav) w += 2;
+    if ((entry.user_rating || 0) >= 8) w += 2;
+    else if ((entry.user_rating || 0) >= 6) w += 1;
+    for (const g of (t.genre || '').split(',').map(s => s.trim()).filter(Boolean)) {
+      genreWeights[g] = (genreWeights[g] || 0) + w;
+    }
+  }
+
+  if (totalEngaged === 0) {
+    wrap.innerHTML = `<div class="empty"><div class="empty-icon">✦</div><div class="empty-title">Nothing to recommend yet</div><div class="empty-sub">Add titles to your watchlist, mark things as watching or finished, and we’ll suggest what to watch next.</div></div>`;
+    return;
+  }
+
+  // Titles the user hasn't engaged with yet (candidates)
+  const eligible = allTitles.filter(t => {
+    const entry = getEntry(t);
+    return !entry.is_fav && entry.status === 'not-started' && (t.imdb_votes || 0) >= 5000;
+  });
+
+  // Score each eligible title by genre affinity × quality
+  const scored = eligible.map(t => {
+    const genres = (t.genre || '').split(',').map(s => s.trim()).filter(Boolean);
+    let gs = genres.reduce((sum, g) => sum + (genreWeights[g] || 0), 0);
+    if (genres.length > 0) gs /= Math.sqrt(genres.length);
+    const qm = (1 + (t.imdb_score || 0) / 10 * 0.4) * (1 + (t.tomatometer || 0) / 100 * 0.2);
+    return { t, score: gs * qm };
+  }).filter(s => s.score > 0).sort((a, b) => b.score - a.score);
+
+  // Top genre names for "Because you enjoy X" sections
+  const topGenres = Object.entries(genreWeights).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([g]) => g);
+
+  const PREVIEW = 8;
+  const mkSec = (title, all) => ({ title, all, preview: all.slice(0, PREVIEW) });
+
+  const rawSections = [];
+  const allScored = scored.map(s => s.t);
+  if (allScored.length) rawSections.push(mkSec('✦ Top Picks for You', allScored.slice(0, 50)));
+  const allMovies = scored.filter(s => s.t.content_type === 'movie').map(s => s.t);
+  if (allMovies.length) rawSections.push(mkSec('🎬 Movies You Might Like', allMovies.slice(0, 50)));
+  const allTV = scored.filter(s => s.t.content_type === 'tv').map(s => s.t);
+  if (allTV.length) rawSections.push(mkSec('📺 TV Shows You Might Like', allTV.slice(0, 50)));
+  const gems = eligible
+    .filter(t => (t.imdb_score || 0) >= 7.5 && (t.imdb_votes || 0) < 150000)
+    .sort((a, b) => (b.imdb_score || 0) - (a.imdb_score || 0))
+    .slice(0, 50);
+  if (gems.length >= 3) rawSections.push(mkSec('💎 Hidden Gems', gems));
+  for (const genre of topGenres) {
+    const gItems = scored
+      .filter(s => (s.t.genre || '').split(',').map(g => g.trim()).includes(genre))
+      .map(s => s.t).slice(0, 50);
+    if (gItems.length >= 3) {
+      const displayName = formatGenre(genre);
+      const em = genreEmoji(displayName);
+      rawSections.push(mkSec(`Because you enjoy ${em} ${displayName}`, gItems));
+    }
+  }
+
+  _forYouSections = rawSections;
+
+  const allForYouItems = [];
+  wrap.innerHTML = rawSections.map((sec, idx) => {
+    allForYouItems.push(...sec.all);
+    const more = sec.all.length > sec.preview.length;
+    return `
+      <div class="discover-section">
+        <div class="discover-section-title">${sec.title}</div>
+        <div class="discover-row">${sec.preview.map(_forYouCard).join('')}</div>
+        ${more ? `<button class="foryou-see-more" onclick="openForYouSection(${idx})">See all ${sec.all.length} titles →</button>` : ''}
+      </div>`;
+  }).join('');
+
+  _loadDiscoverPosters(allForYouItems);
+}
+
+function openForYouSection(idx) {
+  const sec = _forYouSections[idx];
+  if (!sec) return;
+  const overlay = document.getElementById('forYouDetailOverlay');
+  const crumb   = document.getElementById('forYouDetailCrumb');
+  const grid    = document.getElementById('forYouDetailGrid');
+  if (!overlay || !grid) return;
+  if (!_handlingPop) history.pushState({ overlay: 'forYouSection' }, '');
+  crumb.textContent = sec.title;
+  grid.innerHTML = sec.all.map(_forYouCard).join('');
+  overlay.classList.add('open');
+  _loadDiscoverPosters(sec.all);
+}
+window.openForYouSection = openForYouSection;
+
+function closeForYouSection() {
+  document.getElementById('forYouDetailOverlay')?.classList.remove('open');
+}
+window.closeForYouSection = closeForYouSection;
 
 // ── Stats view ────────────────────────────────────────────────────────────────
 function renderStatsPanel() {
@@ -1283,6 +1479,9 @@ function _applyFiltersNow() {
     if (activeContentTypeFilter === 'tv'    && t.content_type !== 'tv')    return false;
     // Trending titles are filtered server-side (?trending=1); this is a safety-net fallback
     if (activeType==='trending'   && !(t.ranking_position > 0)) return false;
+    // Ongoing/Ended filter (TV only)
+    if (activeOngoingFilter === 'ongoing' && !(t.content_type === 'tv' && t.is_ongoing == 1)) return false;
+    if (activeOngoingFilter === 'ended'   && !(t.content_type === 'tv' && t.is_ongoing == 0)) return false;
     // Use activeStatusFilter (from status sub-bar) when set, otherwise fall back to activeType
     const _effectiveSF = activeStatusFilter !== 'all' ? activeStatusFilter : activeType;
     if (_effectiveSF==='favourites' && !entry.is_fav)              return false;
@@ -1328,9 +1527,10 @@ function _applyFiltersNow() {
     _sortedTitles = filtered;
   }
 
-  // Mark discover/stats as dirty so they refresh next time their tab is opened
+  // Mark discover/stats/forYou as dirty so they refresh next time their tab is opened
   _discoverDirty = true;
   _statsDirty    = true;
+  _forYouDirty   = true;
 
   renderGrid(filtered);
   const _SF_VIEWS = new Set(['favourites','watchlist','watching','finished']);
@@ -1376,6 +1576,7 @@ function _updateClearUI() {
     || activeGenres.size > 0
     || excludedGenres.size > 0
     || activeVotes > 0
+    || activeOngoingFilter !== 'all'
     || (activeType === 'trending' && trendingContentType !== 'all');
   if (cfBtn) cfBtn.style.display = hasFilters ? '' : 'none';
 }
@@ -1484,6 +1685,7 @@ function clearAllFilters() {
   setVotesFilter(0, 'Any votes');
   if (typeof clearGenres   === 'function') clearGenres();
   if (typeof clearExcluded === 'function') clearExcluded();
+  if (activeOngoingFilter !== 'all') { activeOngoingFilter = 'all'; _syncOngoingFilterBtns(); }
   applyFilters(true);
   _updateFilterToggleBtn();
 }
@@ -1624,7 +1826,7 @@ function renderCard(t, i) {
           <span class="type-tag ${t.content_type}">${t.content_type==='movie'?'🎬 MOVIE':t.content_type==='tv'?'📺 TV':t.content_type||'?'}</span>
           <span class="year-text" id="yeartext-${CSS.escape(tk)}">${_tvYearDisplay(t)}</span>
         </div>
-        ${t.content_type==='tv'&&t.num_seasons>0?`<div class="card-seasons">${t.num_seasons} season${t.num_seasons!==1?'s':''}</div>`:t.content_type==='movie'&&t.runtime_mins>0?`<div class="card-seasons">${t.runtime_mins} min</div>`:''}
+        ${t.content_type==='tv'&&(t.num_seasons>0||t.is_ongoing!=null)?`<div class="card-seasons">${[t.num_seasons>0?`${t.num_seasons} season${t.num_seasons!==1?'s':''}`:null,t.is_ongoing!=null?`<span class="ongoing-tag ${t.is_ongoing?'ongoing':'ended'}">${t.is_ongoing?'Ongoing':'Ended'}</span>`:null].filter(Boolean).join(' ')}</div>`:t.content_type==='movie'&&t.runtime_mins>0?`<div class="card-seasons">${t.runtime_mins} min</div>`:''}
         ${(imdb||rt||t.maturity_rating)?`<div class="card-scores">${imdb}${rt}${t.maturity_rating?`<span class="rating-tag">${t.maturity_rating}</span>`:''}</div>`:''}
         ${genres?`<div class="genres">${genres}</div>`:''}
         ${platformBadgesHtml}
@@ -2034,6 +2236,7 @@ document.addEventListener('DOMContentLoaded', () => {
     'overlay', 'actorOverlay', 'watchHistoryOverlay', 'profileOverlay',
     'friendLibraryOverlay', 'friendProfileOverlay', 'friendsOverlay',
     'peopleAllOverlay', 'epDetailOverlay', 'filterSheet',
+    'forYouDetailOverlay', 'discoverDetailOverlay',
   ];
 
   function syncBodyScroll() {
@@ -2152,18 +2355,29 @@ function _searchPeopleForCatalog(q) {
 window.addEventListener('popstate', e => {
   _handlingPop = true;
   try {
-    const epDetailOverlay      = document.getElementById('epDetailOverlay');
-    const friendLibraryOverlay = document.getElementById('friendLibraryOverlay');
-    const friendProfileOverlay = document.getElementById('friendProfileOverlay');
+    const epDetailOverlay       = document.getElementById('epDetailOverlay');
+    const forYouDetailOverlay   = document.getElementById('forYouDetailOverlay');
+    const discoverDetailOverlay = document.getElementById('discoverDetailOverlay');
+    const notifDetailOverlay    = document.getElementById('notifDetailOverlay');
+    const friendLibraryOverlay  = document.getElementById('friendLibraryOverlay');
+    const friendProfileOverlay  = document.getElementById('friendProfileOverlay');
     const filmographyAllOverlay = document.getElementById('filmographyAllOverlay');
-    const actorOverlay         = document.getElementById('actorOverlay');
-    const overlay              = document.getElementById('overlay');
-    const peopleAllOverlay     = document.getElementById('peopleAllOverlay');
-    const profileOverlay       = document.getElementById('profileOverlay');
-    const friendsOverlay       = document.getElementById('friendsOverlay');
-    const watchHistoryOverlay  = document.getElementById('watchHistoryOverlay');
+    const actorOverlay          = document.getElementById('actorOverlay');
+    const overlay               = document.getElementById('overlay');
+    const peopleAllOverlay      = document.getElementById('peopleAllOverlay');
+    const profileOverlay        = document.getElementById('profileOverlay');
+    const friendsOverlay        = document.getElementById('friendsOverlay');
+    const watchHistoryOverlay   = document.getElementById('watchHistoryOverlay');
     if (epDetailOverlay && epDetailOverlay.classList.contains('open')) {
       closeEpisodeDetail();
+    } else if (overlay && overlay.classList.contains('open')) {
+      closeModalDirect();
+    } else if (forYouDetailOverlay && forYouDetailOverlay.classList.contains('open')) {
+      closeForYouSection();
+    } else if (discoverDetailOverlay && discoverDetailOverlay.classList.contains('open')) {
+      closeDiscoverSection();
+    } else if (notifDetailOverlay && !notifDetailOverlay.classList.contains('hidden') && notifDetailOverlay.classList.contains('open')) {
+      closeNotifDetail();
     } else if (friendLibraryOverlay && friendLibraryOverlay.classList.contains('open')) {
       closeFriendLibrary();
     } else if (friendProfileOverlay && friendProfileOverlay.classList.contains('open')) {
@@ -2172,8 +2386,6 @@ window.addEventListener('popstate', e => {
       closeFilmographyAllOverlay();
     } else if (actorOverlay && actorOverlay.classList.contains('open')) {
       closeActorModalDirect();
-    } else if (overlay && overlay.classList.contains('open')) {
-      closeModalDirect();
     } else if (peopleAllOverlay && peopleAllOverlay.classList.contains('open')) {
       closePeopleAll();
     } else if (watchHistoryOverlay && watchHistoryOverlay.classList.contains('open')) {

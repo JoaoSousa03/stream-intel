@@ -398,10 +398,13 @@ async function openModal(cardIdOrObj, fromHistory = false) {
     navStack.length = 0; // fresh navigation only clears when not coming from history
     history.pushState({ modal: 'title' }, '');
   }
-  // Boost z-index so the title detail appears above any full-screen overlay (e.g. watch history)
-  const _whOv = document.getElementById('watchHistoryOverlay');
+  // Boost z-index so the title detail appears above any full-screen overlay
+  const _whOv    = document.getElementById('watchHistoryOverlay');
+  const _anyOver = ['forYouDetailOverlay', 'discoverDetailOverlay', 'notifDetailOverlay'].some(
+    id => document.getElementById(id)?.classList.contains('open'));
   document.getElementById('overlay').style.zIndex =
-    (_whOv && _whOv.classList.contains('open')) ? '2300' : '';
+    (_whOv && _whOv.classList.contains('open')) ? '2300' :
+    _anyOver ? '1001' : '';
   currentModalTitle = t;
   const entry = getEntry(t);
   const isTV  = t.content_type === 'tv';

@@ -493,6 +493,15 @@ button, a, input, select, textarea, [onclick], label,
   }
   .discover-section-title::after { content:''; flex:1; height:1px; background:var(--border); }
   .discover-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 14px; }
+  .foryou-see-more {
+    display: inline-flex; align-items: center; gap: 6px; margin-top: 12px;
+    padding: 8px 18px; border: 1px solid var(--border); border-radius: var(--radius);
+    background: transparent; color: var(--accent);
+    font-family: var(--font-body); font-size: 13px; font-weight: 600;
+    cursor: pointer; transition: background var(--transition), border-color var(--transition);
+  }
+  .foryou-see-more:hover { background: rgba(94,234,212,.08); border-color: var(--accent); }
+  .foryou-detail-grid { padding: 24px; display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 14px; }
   .discover-rank-badge {
     position: absolute; top: 8px; left: 8px; z-index: 2;
     min-width: 28px; height: 28px; padding: 0 6px;
@@ -1193,7 +1202,10 @@ button, a, input, select, textarea, [onclick], label,
   .score-value.rt { color: var(--tomato); }
   .score-value.tmdb { color: #4fc3f7; }
   .card-sub .rating-tag { margin-left: auto; }
-  .card-seasons { font-size: 11px; color: var(--muted); margin-bottom: 8px; }
+  .card-seasons { font-size: 11px; color: var(--muted); margin-bottom: 8px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .ongoing-tag { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 8px; letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; }
+  .ongoing-tag.ongoing { background: rgba(52,211,153,.12); color: var(--finished); border: 1px solid rgba(52,211,153,.3); }
+  .ongoing-tag.ended   { background: rgba(255,255,255,.06); color: var(--muted); border: 1px solid var(--border); }
   .score-votes { font-size: 10px; color: var(--muted); }
   .genres { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 8px; }
   .genre-chip { font-size: 10px; color: var(--muted); background: var(--bg); border: 1px solid var(--border); padding: 2px 7px; border-radius: 4px; }
@@ -2001,7 +2013,8 @@ body.nav-drawer-open { overflow: hidden; }
   /* search dropdown: full-width, fixed position — top is set dynamically by JS */
   .hs-dropdown {
     position: fixed !important;
-    left: auto !important;
+    left: 8px !important;
+    right: 8px !important;
     width: auto !important;
     max-width: none !important;
     transform: none !important;
@@ -2227,7 +2240,8 @@ body.nav-drawer-open { overflow: hidden; }
 
   /* 2-column grid on small phones */
   .grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
-  .discover-row { grid-template-columns: repeat(2, 1fr); }
+  .discover-row, .foryou-detail-grid { grid-template-columns: repeat(2, 1fr); }
+  .foryou-detail-grid { padding: 12px; gap: 8px; }
 
   /* even smaller header items */
   .header-search-input { width: 88px; }

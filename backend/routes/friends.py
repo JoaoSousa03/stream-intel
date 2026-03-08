@@ -328,6 +328,8 @@ def _send_push_async(user_id: int, payload: dict):
 
         try:
             from pywebpush import webpush, WebPushException
+            from py_vapid import Vapid01
+            vapid_obj = Vapid01.from_pem(settings.VAPID_PRIVATE_PEM.encode("utf-8"))
             from backend.config import settings
             import sqlite3
             import json as _json
@@ -359,7 +361,7 @@ def _send_push_async(user_id: int, payload: dict):
                             "keys": {"p256dh": row["p256dh"], "auth": row["auth"]},
                         },
                         data=_json.dumps(payload),
-                        vapid_private_key=settings.VAPID_PRIVATE_PEM,
+                        vapid_private_key=vapid_obj,
                         vapid_claims={"sub": f"mailto:{settings.VAPID_CLAIMS_EMAIL}"},
                     )
                     print(f"[push] sent to user {user_id}", file=sys.stderr)
