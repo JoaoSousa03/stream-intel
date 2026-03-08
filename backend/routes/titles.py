@@ -138,6 +138,7 @@ def get_titles():
                MAX(t.runtime_mins)    AS runtime_mins,
                MAX(t.end_year)        AS end_year,
                MAX(t.is_ongoing)      AS is_ongoing,
+               MAX(t.num_seasons)     AS num_seasons,
                MAX(t.synopsis)        AS synopsis,
                MAX(t.release_year)    AS release_year,
                MAX(t.genre)           AS genre,

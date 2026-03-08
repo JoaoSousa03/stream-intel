@@ -1149,6 +1149,9 @@ button, a, input, select, textarea, [onclick], label,
     .card.card-tapped { border-color: rgba(94,234,212,.35); transform: translateY(-3px); box-shadow: 0 12px 40px rgba(0,0,0,.5); }
     .card.card-tapped .card-poster img { transform: scale(1.04); }
     .card.card-tapped .card-poster-overlay { opacity: 1; }
+    /* Always show status indicator on cards that have one */
+    .card-poster-overlay:has(.status-indicator) { opacity: 1; background: linear-gradient(to bottom, transparent 55%, rgba(0,0,0,.82) 100%); }
+    .card-poster-overlay:has(.status-indicator) .poster-top { visibility: hidden; }
   }
 /* ── Card status menu popup ─────────────────────────────── */
 .card-menu-popup {

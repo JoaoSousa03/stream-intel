@@ -1497,6 +1497,26 @@ function setModalRegion(region, e) {
   _renderModalPlatformPills(currentModalTitle, _modalSelectedRegion);
 }
 
+// Android intent:// deep-link builders — open the app if installed, fall back to web
+const PLATFORM_INTENT_URLS = {
+  netflix:        url => `intent://${url.replace(/^https?:\/\//,'')}#Intent;scheme=https;package=com.netflix.mediaclient;S.browser_fallback_url=${encodeURIComponent(url)};end`,
+  disney_plus:    url => `intent://${url.replace(/^https?:\/\//,'')}#Intent;scheme=https;package=com.disney.disneyplus;S.browser_fallback_url=${encodeURIComponent(url)};end`,
+  hbo_max:        url => `intent://${url.replace(/^https?:\/\//,'')}#Intent;scheme=https;package=com.hbo.hbonow;S.browser_fallback_url=${encodeURIComponent(url)};end`,
+  apple_tv:       url => `intent://${url.replace(/^https?:\/\//,'')}#Intent;scheme=https;package=com.apple.atve.sony.appletv;S.browser_fallback_url=${encodeURIComponent(url)};end`,
+  prime_video:    url => `intent://${url.replace(/^https?:\/\//,'')}#Intent;scheme=https;package=com.amazon.avod.thirdpartyclient;S.browser_fallback_url=${encodeURIComponent(url)};end`,
+  hulu:           url => `intent://${url.replace(/^https?:\/\//,'')}#Intent;scheme=https;package=com.hulu.plus;S.browser_fallback_url=${encodeURIComponent(url)};end`,
+  peacock:        url => `intent://${url.replace(/^https?:\/\//,'')}#Intent;scheme=https;package=com.peacocktv.peacockandroid;S.browser_fallback_url=${encodeURIComponent(url)};end`,
+  paramount_plus: url => `intent://${url.replace(/^https?:\/\//,'')}#Intent;scheme=https;package=com.cbs.ott;S.browser_fallback_url=${encodeURIComponent(url)};end`,
+};
+
+function openPlatformLink(e, href, p) {
+  if (/android/i.test(navigator.userAgent) && PLATFORM_INTENT_URLS[p]) {
+    e.preventDefault();
+    window.location.href = PLATFORM_INTENT_URLS[p](href);
+  }
+  // iOS: Universal Links trigger automatically on regular https:// href
+}
+
 // Per-platform search URL builders (used to make platform pills clickable)
 const PLATFORM_WATCH_URLS = {
   netflix:        q => `https://www.netflix.com/search?q=${encodeURIComponent(q)}`,
@@ -1544,7 +1564,7 @@ function _renderModalPlatformPills(t, region) {
     const urlFn     = PLATFORM_WATCH_URLS[p];
     const href      = directUrl ? escAttr(directUrl) : (urlFn ? escAttr(urlFn(titleQ)) : null);
     if (href) {
-      return `<a class="modal-platform-pill ${p}" href="${href}" target="_blank" rel="noopener noreferrer">${platLogo(p)}<span>${formatPlatform(p)}</span></a>`;
+      return `<a class="modal-platform-pill ${p}" href="${href}" target="_blank" rel="noopener noreferrer" onclick="openPlatformLink(event,'${href}','${p}')">${platLogo(p)}<span>${formatPlatform(p)}</span></a>`;
     }
     return `<span class="modal-platform-pill ${p}">${platLogo(p)}<span>${formatPlatform(p)}</span></span>`;
   }).join('');
