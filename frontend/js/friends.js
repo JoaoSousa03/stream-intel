@@ -160,6 +160,23 @@ async function _initPush() {
     }
 
     if (!sub) {
+      // On Android 13+ TWA, calling pushManager.subscribe() directly triggers
+      // the OS POST_NOTIFICATIONS runtime permission dialog every time there is
+      // no active subscription — even if the user already granted permission in
+      // a previous session and the Chrome-level permission is still 'granted'.
+      // Fix: call Notification.requestPermission() first. If already granted the
+      // browser returns 'granted' immediately without showing any dialog. Only
+      // if it actually returns 'granted' do we proceed to subscribe().
+      let permission = Notification.permission;
+      if (permission !== 'granted') {
+        permission = await Notification.requestPermission();
+      }
+      if (permission !== 'granted') {
+        console.log('[push] permission not granted — skipping subscribe');
+        // Clear the flag so the banner re-shows (lets the user retry later).
+        localStorage.removeItem('push_subscribed');
+        return;
+      }
       sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: keyBytes,
