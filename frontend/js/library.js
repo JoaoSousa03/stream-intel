@@ -1500,16 +1500,21 @@ function setModalRegion(region, e) {
   _renderModalPlatformPills(currentModalTitle, _modalSelectedRegion);
 }
 
-// Android intent:// deep-link builders — open the app if installed, fall back to web
+// Android intent:// deep-link builders — open the app if installed, fall back to web.
+// Each entry takes (webUrl, title). We use the platform's own custom URI scheme rather
+// than scheme=https so that Android doesn't need the app to have registered a handler
+// for the specific HTTPS path (apps only register for title-detail URLs, not search pages).
+// Prime Video is kept as scheme=https because the scraped URL is a product page that the
+// app broadly handles and it already works.
 const PLATFORM_INTENT_URLS = {
-  netflix:        url => `intent://${url.replace(/^https?:\/\//,'')}#Intent;scheme=https;package=com.netflix.mediaclient;S.browser_fallback_url=${encodeURIComponent(url)};end`,
-  disney_plus:    url => `intent://${url.replace(/^https?:\/\//,'')}#Intent;scheme=https;package=com.disney.disneyplus;S.browser_fallback_url=${encodeURIComponent(url)};end`,
-  hbo_max:        url => `intent://${url.replace(/^https?:\/\//,'')}#Intent;scheme=https;package=com.hbo.hbonow;S.browser_fallback_url=${encodeURIComponent(url)};end`,
-  apple_tv:       url => `intent://${url.replace(/^https?:\/\//,'')}#Intent;scheme=https;package=com.apple.atve.sony.appletv;S.browser_fallback_url=${encodeURIComponent(url)};end`,
-  prime_video:    url => `intent://${url.replace(/^https?:\/\//,'')}#Intent;scheme=https;package=com.amazon.avod.thirdpartyclient;S.browser_fallback_url=${encodeURIComponent(url)};end`,
-  hulu:           url => `intent://${url.replace(/^https?:\/\//,'')}#Intent;scheme=https;package=com.hulu.plus;S.browser_fallback_url=${encodeURIComponent(url)};end`,
-  peacock:        url => `intent://${url.replace(/^https?:\/\//,'')}#Intent;scheme=https;package=com.peacocktv.peacockandroid;S.browser_fallback_url=${encodeURIComponent(url)};end`,
-  paramount_plus: url => `intent://${url.replace(/^https?:\/\//,'')}#Intent;scheme=https;package=com.cbs.ott;S.browser_fallback_url=${encodeURIComponent(url)};end`,
+  netflix:        (url, q) => `intent://www.netflix.com/search?q=${encodeURIComponent(q)}#Intent;scheme=nflx;package=com.netflix.mediaclient;S.browser_fallback_url=${encodeURIComponent(url)};end`,
+  disney_plus:    (url, q) => `intent://search?q=${encodeURIComponent(q)}#Intent;scheme=disneyplus;package=com.disney.disneyplus;S.browser_fallback_url=${encodeURIComponent(url)};end`,
+  hbo_max:        (url, q) => `intent://search?q=${encodeURIComponent(q)}#Intent;scheme=max;package=com.hbo.hbonow;S.browser_fallback_url=${encodeURIComponent(url)};end`,
+  apple_tv:       (url, q) => `intent://search?term=${encodeURIComponent(q)}#Intent;scheme=com.apple.tv;package=com.apple.atve.sony.appletv;S.browser_fallback_url=${encodeURIComponent(url)};end`,
+  prime_video:    (url, q) => `intent://${url.replace(/^https?:\/\//,'')}#Intent;scheme=https;package=com.amazon.avod.thirdpartyclient;S.browser_fallback_url=${encodeURIComponent(url)};end`,
+  hulu:           (url, q) => `intent://search?q=${encodeURIComponent(q)}#Intent;scheme=hulu;package=com.hulu.plus;S.browser_fallback_url=${encodeURIComponent(url)};end`,
+  peacock:        (url, q) => `intent://#Intent;scheme=peacocktv;package=com.peacocktv.peacockandroid;S.browser_fallback_url=${encodeURIComponent(url)};end`,
+  paramount_plus: (url, q) => `intent://#Intent;scheme=paramountplus;package=com.cbs.ott;S.browser_fallback_url=${encodeURIComponent(url)};end`,
 };
 
 // iOS custom URL scheme builders — try to open the app; browser falls back to web URL if not installed.
@@ -1531,7 +1536,8 @@ function openPlatformLink(e, href, p) {
   // Android: intent:// scheme opens the app if installed, falls back to web via browser_fallback_url
   if (/android/i.test(navigator.userAgent) && PLATFORM_INTENT_URLS[p]) {
     e.preventDefault();
-    window.location.href = PLATFORM_INTENT_URLS[p](href);
+    const title = (typeof currentModalTitle !== 'undefined' && currentModalTitle?.title) || '';
+    window.location.href = PLATFORM_INTENT_URLS[p](href, title);
   }
   // iOS: handled at render time — the anchor href is set to the app scheme directly so the
   // navigation is a proper user gesture (required by Safari). See iosPlatformFallback().
