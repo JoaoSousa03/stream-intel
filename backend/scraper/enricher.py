@@ -105,8 +105,7 @@ def enrich_from_db(db_path: Path, api_key: Optional[str] = None) -> None:
             """SELECT DISTINCT title, content_type, release_year
                FROM titles
                WHERE runtime_mins = 0
-                  OR (content_type = 'tv' AND is_ongoing IS NULL)
-                  OR (content_type = 'tv' AND num_seasons IS NULL)"""
+                  OR content_type = 'tv'"""
         ).fetchall()
 
     if not rows:
