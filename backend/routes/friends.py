@@ -588,7 +588,7 @@ def _push_body_for(ntype: str, actor_name: str, payload: dict) -> str:
         is_fav = payload.get("is_fav")
         status_map = {
             "watchlist": f"{name} added \u201c{title}\u201d to their watchlist.",
-            "watching": f"{name} started watching \u201c{title}\u201d.",
+            "watching": f"{name} is watching \u201c{title}\u201d.",
             "finished": f"{name} finished watching \u201c{title}\u201d.",
             "not-started": f"{name} removed \u201c{title}\u201d from their library.",
         }

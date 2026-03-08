@@ -406,6 +406,7 @@ async function openModal(cardIdOrObj, fromHistory = false) {
     (_whOv && _whOv.classList.contains('open')) ? '2300' :
     _anyOver ? '1001' : '';
   currentModalTitle = t;
+  _modalFavChangedThisSession = false;
   const entry = getEntry(t);
   const isTV  = t.content_type === 'tv';
 
@@ -1256,10 +1257,22 @@ function toggleBio(btn) {
 }
 
 // ── updateModalFavBtn / status ────────────────────────────────────────────────
+let _modalFavChangedThisSession = false;
+
+function _updateModalShareBtn() {
+  // Share Status button visibility only — Send to a Friend is always visible
+  const shareStatusBtn = document.getElementById('modalShareStatusBtn');
+  if (!shareStatusBtn || !currentModalTitle) return;
+  const entry = getEntry(currentModalTitle);
+  const hasStatus = entry.status && entry.status !== 'not-started';
+  shareStatusBtn.style.display = hasStatus ? '' : 'none';
+}
+
 function updateModalFavBtn(isFav) {
   const btn = document.getElementById('modalFavBtn');
   btn.textContent = isFav ? '❤️ Favourite' : '❤️ Add to Favourites';
   btn.classList.toggle('active', isFav);
+  _updateModalShareBtn();
 }
 function updateModalStatusBtns(status) {
   ['sBtn1','sBtn2','sBtn3'].forEach(id => {
@@ -1277,11 +1290,13 @@ function updateModalStatusBtns(status) {
     sBtn2.disabled = !!(isTV && isOngoing);
     sBtn2.title = (isTV && isOngoing) ? 'Show is still ongoing' : '';
   }
+  _updateModalShareBtn();
 }
 
 async function toggleFavFromModal() {
   if (!currentModalTitle) return;
   const current = getEntry(currentModalTitle).is_fav;
+  _modalFavChangedThisSession = true;
   await syncLibrary(currentModalTitle, {is_fav: !current}, {loader:true});
   updateModalFavBtn(!current);
   const tk  = titleKey(currentModalTitle);
@@ -1355,6 +1370,7 @@ function updateModalRating(rating) {
   });
   const clearBtn = document.getElementById('mRatingClear');
   if (clearBtn) clearBtn.style.display = rating > 0 ? '' : 'none';
+  _updateModalShareBtn();
 }
 
 // Fill stars up-to-hovered on mouseenter, clear on container mouseleave
@@ -1385,22 +1401,6 @@ async function setRatingFromModal(stars) {
   const newRating = (stars === current) ? 0 : stars; // tap same star = clear
   await syncLibrary(currentModalTitle, {user_rating: newRating}, {loader: false});
   updateModalRating(newRating);
-  if (newRating > 0 && typeof _friends !== 'undefined' && _friends.length) {
-    _showRatingShareToast();
-  }
-}
-
-function _showRatingShareToast() {
-  document.getElementById('_ratingShareToast')?.remove();
-  const toast = document.createElement('div');
-  toast.id = '_ratingShareToast';
-  toast.className = 'rating-share-toast';
-  toast.innerHTML =
-    `<span>Share your rating with friends?</span>` +
-    `<button class="rating-share-yes" onclick="openShareMsgDialog();document.getElementById('_ratingShareToast')?.remove()">Share</button>` +
-    `<button class="rating-share-no" onclick="document.getElementById('_ratingShareToast')?.remove()">×</button>`;
-  document.body.appendChild(toast);
-  setTimeout(() => { document.getElementById('_ratingShareToast')?.remove(); }, 6000);
 }
 
 function toggleModalRegions(e) { /* legacy no-op */ }

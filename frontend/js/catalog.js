@@ -93,21 +93,6 @@ async function syncLibrary(t, patch, opts={}) {
     is_fav: merged.is_fav, status: merged.status, notes: merged.notes,
     user_rating: merged.user_rating || 0,
   }, opts);
-  // Prompt to share with friends only when value actually changed
-  if (typeof promptShare === 'function') {
-    const statusChanged = 'status' in patch && patch.status !== entry.status;
-    const favChanged    = 'is_fav' in patch && patch.is_fav !== entry.is_fav;
-    if (statusChanged || favChanged) {
-      const action = {
-        title: t.title, platform: t.platform, content_type: t.content_type,
-        year: t.release_year || null, end_year: t.end_year || null,
-        imdb_score: t.imdb_score || null,
-      };
-      if (statusChanged) action.status = merged.status;
-      if (favChanged)    action.is_fav  = merged.is_fav;
-      promptShare(action);
-    }
-  }
   // Ensure UI everywhere reflects the new state (cards, modal, dots)
   try { if (typeof window.syncUIForTitle === 'function') window.syncUIForTitle(titleKey(t)); } catch (e) { /* no-op */ }
 }
@@ -2330,6 +2315,10 @@ document.addEventListener('DOMContentLoaded', () => {
     bar.addEventListener('scroll', updateFade, { passive: true });
     // Also re-check whenever tabs change (view switches may resize the bar)
     new MutationObserver(updateFade).observe(bar, { childList: true, subtree: true, attributes: true, attributeFilter: ['style'] });
+    // Re-check when bar dimensions change (e.g. when appLayout becomes visible after login)
+    if (typeof ResizeObserver !== 'undefined') {
+      new ResizeObserver(updateFade).observe(bar);
+    }
     updateFade();
   });
 });

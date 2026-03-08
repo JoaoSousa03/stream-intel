@@ -246,9 +246,11 @@ def create_app() -> Flask:
         if path.startswith(".well-known/"):
             wk_path = settings.UI_DIR / path
             if wk_path.exists():
-                return send_from_directory(str(settings.UI_DIR), path,
-                                           mimetype="application/json")
+                return send_from_directory(
+                    str(settings.UI_DIR), path, mimetype="application/json"
+                )
             from flask import abort
+
             abort(404)
 
         target = settings.UI_DIR / path

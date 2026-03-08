@@ -482,11 +482,15 @@
       </div>
     </div>
 
-    <!-- Send to friend button -->
-    <div class="modal-share-row">
+    <!-- Send to friend button (shown only when title has a status, is favourited, or is rated) -->
+    <div class="modal-share-row" id="modalShareRow">
       <button class="modal-share-msg-btn" onclick="openShareMsgDialog()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
         Send to a Friend
+      </button>
+      <button class="modal-share-msg-btn modal-share-status-btn" id="modalShareStatusBtn" style="display:none" onclick="shareStatusFromModal()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+        Share Status
       </button>
     </div>
 
@@ -1004,7 +1008,10 @@
       <button class="share-msg-close" onclick="closeShareMsgDialog()" aria-label="Close">✕</button>
     </div>
     <div class="share-msg-title-row" id="shareMsgTitleRow"></div>
-    <div class="share-msg-to-label">To</div>
+    <div class="share-to-row">
+      <div class="share-msg-to-label" style="margin-bottom:0">To</div>
+      <button class="share-select-all-btn" onclick="selectAllShareMsgFriends()">Select all</button>
+    </div>
     <div class="share-msg-friends" id="shareMsgFriends"></div>
     <div class="share-msg-compose">
       <textarea class="share-msg-textarea" id="shareMsgText" maxlength="500"
@@ -1040,6 +1047,10 @@
 <div class="share-prompt hidden" id="sharePrompt">
   <div class="share-prompt-inner">
     <div class="share-prompt-title" id="sharePromptTitle">Share with friends?</div>
+    <div class="share-to-row">
+      <span style="font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)">To</span>
+      <button class="share-select-all-btn" onclick="selectAllShareFriends()">Select all</button>
+    </div>
     <div class="share-prompt-friends" id="sharePromptFriends"></div>
     <div class="share-prompt-actions">
       <button class="share-send-btn" id="shareSendBtn" onclick="confirmShare()">Share</button>

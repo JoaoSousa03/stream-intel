@@ -332,7 +332,7 @@ function _notifText(n) {
       const titleLink = `<span class="notif-title-link" data-tk="${tk}" onclick="_openTitleFromNotif(this)">${escHtml(rawTitle)}</span>`;
       const statusMap = {
         watchlist:    `🔖 added <b>${titleLink}</b> to their watchlist`,
-        watching:     `▶️ started watching <b>${titleLink}</b>`,
+        watching:     `▶️ is watching <b>${titleLink}</b>`,
         finished:     `✅ finished watching <b>${titleLink}</b>`,
         'not-started':`❌ removed <b>${titleLink}</b> from their library`,
       };
@@ -937,9 +937,29 @@ async function loadFriendPeople(uid) {
 // ── Share prompt ──────────────────────────────────────────────────────────────
 let _shareAutoHideTimer = null;
 
+function shareStatusFromModal() {
+  if (typeof currentModalTitle === 'undefined' || !currentModalTitle) return;
+  const entry = (typeof getEntry === 'function') ? getEntry(currentModalTitle) : {};
+  const status = entry.status;
+  const action = {
+    title: currentModalTitle.title,
+    platform: currentModalTitle.platform,
+    content_type: currentModalTitle.content_type,
+    year: currentModalTitle.release_year || null,
+    end_year: currentModalTitle.end_year || null,
+    imdb_score: currentModalTitle.imdb_score || null,
+  };
+  if (status && status !== 'not-started') action.status = status;
+  // Only include fav change if the user actually toggled it during this modal session
+  if (typeof _modalFavChangedThisSession !== 'undefined' && _modalFavChangedThisSession) {
+    action.is_fav = !!entry.is_fav;
+  }
+  promptShare(action);
+}
+
 function promptShare(action) {
   if (!_friends.length) return; // no friends, skip silently
-  _sharePending = { action, selectedIds: new Set(_friends.map(f => f.id)) };
+  _sharePending = { action, selectedIds: new Set() };
 
   const titleEl   = document.getElementById('sharePromptTitle');
   const friendsEl = document.getElementById('sharePromptFriends');
@@ -947,7 +967,7 @@ function promptShare(action) {
 
   titleEl.textContent = _shareActionLabel(action);
   friendsEl.innerHTML = _friends.map(f => `
-    <button class="share-friend-chip selected" data-fid="${f.id}" onclick="toggleShareFriend(${f.id},this)">
+    <button class="share-friend-chip" data-fid="${f.id}" onclick="toggleShareFriend(${f.id},this)">
       ${_avatarHtml(f, 24)}
       <span>${escHtml(f.display_name || f.username)}</span>
     </button>`).join('');
@@ -964,7 +984,7 @@ function _shareActionLabel(a) {
   const t = a.title || '';
   const statusLabels = {
     watchlist:     `added "${t}" to your watchlist`,
-    watching:      `started watching "${t}"`,
+    watching:      `are watching "${t}"`,
     finished:      `finished watching "${t}"`,
     'not-started': `removed "${t}" from your library`,
   };
@@ -985,6 +1005,26 @@ function toggleShareFriend(fid, btn) {
     _sharePending.selectedIds.add(fid);
     btn.classList.add('selected');
   }
+}
+
+function selectAllShareFriends() {
+  if (!_sharePending) return;
+  const friendsEl = document.getElementById('sharePromptFriends');
+  const chips = friendsEl?.querySelectorAll('.share-friend-chip');
+  if (!chips) return;
+  const allSelected = [...chips].every(btn => btn.classList.contains('selected'));
+  const btn = document.querySelector('#sharePrompt .share-select-all-btn');
+  chips.forEach(chip => {
+    const fid = parseInt(chip.dataset.fid);
+    if (allSelected) {
+      _sharePending.selectedIds.delete(fid);
+      chip.classList.remove('selected');
+    } else {
+      _sharePending.selectedIds.add(fid);
+      chip.classList.add('selected');
+    }
+  });
+  if (btn) btn.textContent = allSelected ? 'Select all' : 'Deselect all';
 }
 
 async function confirmShare() {
@@ -1029,7 +1069,7 @@ function openShareMsgDialog() {
     return;
   }
 
-  _shareMsgSelectedIds = new Set(_friends.map(f => f.id));
+  _shareMsgSelectedIds = new Set();
 
   // Populate title row
   const titleRow = document.getElementById('shareMsgTitleRow');
@@ -1044,7 +1084,7 @@ function openShareMsgDialog() {
   // Populate friend chips
   const friendsEl = document.getElementById('shareMsgFriends');
   friendsEl.innerHTML = _friends.map(f => `
-    <button class="share-msg-friend-chip selected" data-fid="${f.id}" onclick="toggleShareMsgFriend(${f.id},this)">
+    <button class="share-msg-friend-chip" data-fid="${f.id}" onclick="toggleShareMsgFriend(${f.id},this)">
       ${_avatarHtml(f, 24)}
       <span>${escHtml(f.display_name || f.username)}</span>
     </button>`).join('');
@@ -1074,11 +1114,30 @@ function toggleShareMsgFriend(fid, btn) {
   }
 }
 
+function selectAllShareMsgFriends() {
+  const friendsEl = document.getElementById('shareMsgFriends');
+  const chips = friendsEl?.querySelectorAll('.share-msg-friend-chip');
+  if (!chips) return;
+  const allSelected = [...chips].every(btn => btn.classList.contains('selected'));
+  const btn = document.querySelector('#shareMsgOverlay .share-select-all-btn');
+  chips.forEach(chip => {
+    const fid = parseInt(chip.dataset.fid);
+    if (allSelected) {
+      _shareMsgSelectedIds.delete(fid);
+      chip.classList.remove('selected');
+    } else {
+      _shareMsgSelectedIds.add(fid);
+      chip.classList.add('selected');
+    }
+  });
+  if (btn) btn.textContent = allSelected ? 'Select all' : 'Deselect all';
+}
+
 async function sendShareMsg() {
   const t   = (typeof currentModalTitle !== 'undefined') ? currentModalTitle : null;
   const msg = document.getElementById('shareMsgText')?.value.trim();
   const ids = [..._shareMsgSelectedIds];
-  if (!t || !msg) return;
+  if (!t) return;
   if (!ids.length) return;
 
   const btn = document.querySelector('.share-msg-send-btn');
@@ -1225,7 +1284,7 @@ function _notifDetailDesc(n) {
     case 'shared_action': {
       const statusMap = {
         watchlist:    '🔖 Added to their watchlist',
-        watching:     '▶️ Started watching',
+        watching:     '▶️ Watching',
         finished:     '✅ Finished watching',
         'not-started':'❌ Removed from their library',
       };
