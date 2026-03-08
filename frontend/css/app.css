@@ -1190,6 +1190,7 @@ button, a, input, select, textarea, [onclick], label,
   .score-value.rt { color: var(--tomato); }
   .score-value.tmdb { color: #4fc3f7; }
   .card-sub .rating-tag { margin-left: auto; }
+  .card-seasons { font-size: 11px; color: var(--muted); margin-bottom: 8px; }
   .score-votes { font-size: 10px; color: var(--muted); }
   .genres { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 8px; }
   .genre-chip { font-size: 10px; color: var(--muted); background: var(--bg); border: 1px solid var(--border); padding: 2px 7px; border-radius: 4px; }

@@ -68,6 +68,9 @@ def _enrich_one(t: dict, api_key: str) -> None:
             or (det.get("last_episode_to_air") or {}).get("runtime")
             or (det.get("next_episode_to_air") or {}).get("runtime")
         )
+        num_seasons = det.get("number_of_seasons")
+        if num_seasons is not None:
+            t["num_seasons"] = int(num_seasons)
     else:
         runtime = det.get("runtime")
     if runtime and not t.get("runtime_mins"):
@@ -92,7 +95,8 @@ def enrich_from_db(db_path: Path, api_key: Optional[str] = None) -> None:
             """SELECT DISTINCT title, content_type, release_year
                FROM titles
                WHERE runtime_mins = 0
-                  OR (content_type = 'tv' AND is_ongoing IS NULL)"""
+                  OR (content_type = 'tv' AND is_ongoing IS NULL)
+                  OR (content_type = 'tv' AND num_seasons IS NULL)"""
         ).fetchall()
 
     if not rows:
@@ -131,13 +135,15 @@ def enrich_from_db(db_path: Path, api_key: Optional[str] = None) -> None:
             runtime = t.get("runtime_mins") or 0
             end_year = t.get("end_year") or None
             is_ongoing = t.get("is_ongoing")
-            if not (runtime or end_year or is_ongoing is not None):
+            num_seasons = t.get("num_seasons")
+            if not (runtime or end_year or is_ongoing is not None or num_seasons is not None):
                 continue  # TMDB lookup failed or returned nothing, skip
             conn.execute(
                 """UPDATE titles SET
-                   runtime_mins = CASE WHEN runtime_mins = 0   AND ? > 0         THEN ? ELSE runtime_mins END,
-                   end_year     = CASE WHEN end_year IS NULL   AND ? IS NOT NULL  THEN ? ELSE end_year END,
-                   is_ongoing   = CASE WHEN is_ongoing IS NULL AND ? IS NOT NULL  THEN ? ELSE is_ongoing END
+                   runtime_mins = CASE WHEN runtime_mins = 0       AND ? > 0         THEN ? ELSE runtime_mins END,
+                   end_year     = CASE WHEN end_year IS NULL        AND ? IS NOT NULL  THEN ? ELSE end_year END,
+                   is_ongoing   = CASE WHEN is_ongoing IS NULL      AND ? IS NOT NULL  THEN ? ELSE is_ongoing END,
+                   num_seasons  = CASE WHEN num_seasons IS NULL     AND ? IS NOT NULL  THEN ? ELSE num_seasons END
                    WHERE title = ? AND content_type = ?""",
                 (
                     runtime,
@@ -146,6 +152,8 @@ def enrich_from_db(db_path: Path, api_key: Optional[str] = None) -> None:
                     end_year,
                     is_ongoing,
                     is_ongoing,
+                    num_seasons,
+                    num_seasons,
                     t["title"],
                     t["content_type"],
                 ),

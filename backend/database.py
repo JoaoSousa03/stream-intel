@@ -328,6 +328,9 @@ def _apply_migrations(conn: sqlite3.Connection):
     if "is_ongoing" not in title_cols:
         print("[DB] Adding is_ongoing column to titles")
         conn.execute("ALTER TABLE titles ADD COLUMN is_ongoing INTEGER DEFAULT NULL")
+    if "num_seasons" not in title_cols:
+        print("[DB] Adding num_seasons column to titles")
+        conn.execute("ALTER TABLE titles ADD COLUMN num_seasons INTEGER DEFAULT NULL")
 
     # Add user_rating to library if missing
     lib_cols = [r[1] for r in conn.execute("PRAGMA table_info(library)").fetchall()]
