@@ -1844,7 +1844,9 @@ function renderCard(t, i) {
   const statusHtml = status==='watching'
     ? `<div class="status-indicator watching"><span class="s-dot"></span>Watching</div>`
     : status==='finished'
-    ? `<div class="status-indicator finished"><span class="s-dot"></span>Finished</div>` : '';
+    ? `<div class="status-indicator finished"><span class="s-dot"></span>Finished</div>`
+    : status==='watchlist'
+    ? `<div class="status-indicator watchlist"><span class="s-dot"></span>Watchlist</div>` : '';
 
   const imdb = t.imdb_score ? `<div class="score-block"><div class="score-label">${_imdbStarSvg(11)} IMDb</div><div class="score-value imdb">${t.imdb_score.toFixed(1)}</div><div class="score-votes">${fmtVotes(t.imdb_votes)}</div></div>` : '';
   const rt   = t.tomatometer ? `<div class="score-block"><div class="score-label">${_rtTomatoSvg(11)} RT</div><div class="score-value rt">${t.tomatometer}%</div></div>` : '';
