@@ -1528,24 +1528,27 @@ const PLATFORM_IOS_SCHEMES = {
 };
 
 function openPlatformLink(e, href, p) {
+  // Android: intent:// scheme opens the app if installed, falls back to web via browser_fallback_url
   if (/android/i.test(navigator.userAgent) && PLATFORM_INTENT_URLS[p]) {
     e.preventDefault();
     window.location.href = PLATFORM_INTENT_URLS[p](href);
-  } else if (/iPhone|iPad|iPod/i.test(navigator.userAgent) && PLATFORM_IOS_SCHEMES[p]) {
-    e.preventDefault();
-    const title  = (typeof currentModalTitle !== 'undefined' && currentModalTitle?.title) || '';
-    const appUrl = PLATFORM_IOS_SCHEMES[p](title);
-    // If the app is installed, the page will become hidden when the OS switches to it.
-    // If not installed, the scheme fails silently and we fall back to the web URL after ~1.2 s.
-    const fallback = setTimeout(() => window.open(href, '_blank'), 1200);
-    document.addEventListener('visibilitychange', function onHide() {
-      if (document.hidden) {
-        clearTimeout(fallback);
-        document.removeEventListener('visibilitychange', onHide);
-      }
-    });
-    window.location.href = appUrl;
   }
+  // iOS: handled at render time — the anchor href is set to the app scheme directly so the
+  // navigation is a proper user gesture (required by Safari). See iosPlatformFallback().
+}
+
+// Called by iOS platform pill links whose href is already set to the custom app scheme.
+// Does NOT preventDefault so the scheme navigates naturally (user-gesture, Safari-safe).
+// Schedules a web-URL fallback via window.location.href (no popup blocker) in case the
+// app isn't installed; cancels it via visibilitychange if the OS switches to the app.
+function iosPlatformFallback(e, fallbackUrl) {
+  const timer = setTimeout(() => { window.location.href = fallbackUrl; }, 1500);
+  document.addEventListener('visibilitychange', function onVis() {
+    if (document.hidden) {
+      clearTimeout(timer);
+      document.removeEventListener('visibilitychange', onVis);
+    }
+  });
 }
 
 // Per-platform search URL builders (used to make platform pills clickable)
@@ -1589,11 +1592,21 @@ function _renderModalPlatformPills(t, region) {
   // Title is available → render pills (as <a> links to the platform page)
   const titleQ  = t ? t.title : '';
   const urlMap  = (t && t.platform_urls) || {};
+  const _isIOS     = /iPhone|iPad|iPod/i.test(navigator.userAgent);
   let html = platforms.map(p => {
     // Prefer the scraped direct URL, fall back to a search on the platform
     const directUrl = urlMap[p];
     const urlFn     = PLATFORM_WATCH_URLS[p];
-    const href      = directUrl ? escAttr(directUrl) : (urlFn ? escAttr(urlFn(titleQ)) : null);
+    const webHref   = directUrl || (urlFn ? urlFn(titleQ) : null);
+    if (!webHref) return `<span class="modal-platform-pill ${p}">${platLogo(p)}<span>${formatPlatform(p)}</span></span>`;
+    // iOS: set href to custom app scheme so the click is a proper user gesture;
+    //       fallback to web URL via window.location.href if scheme unhandled.
+    if (_isIOS && PLATFORM_IOS_SCHEMES[p]) {
+      const appHref = escAttr(PLATFORM_IOS_SCHEMES[p](titleQ));
+      const fbHref  = escAttr(webHref);
+      return `<a class="modal-platform-pill ${p}" href="${appHref}" onclick="iosPlatformFallback(event,'${fbHref}')">${platLogo(p)}<span>${formatPlatform(p)}</span></a>`;
+    }
+    const href = escAttr(webHref);
     if (href) {
       return `<a class="modal-platform-pill ${p}" href="${href}" target="_blank" rel="noopener noreferrer" onclick="openPlatformLink(event,'${href}','${p}')">${platLogo(p)}<span>${formatPlatform(p)}</span></a>`;
     }
